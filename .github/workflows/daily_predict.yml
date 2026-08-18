@@ -2,12 +2,16 @@ name: Daily predict
 
 on:
   schedule:
-    # 01:30 UTC ~= 09:30 Taipei / 10:30 Tokyo (morning pass)
-    - cron: '30 1 * * *'
-    # 06:30 UTC ~= 14:30 Taipei / 15:30 Tokyo (afternoon, most starters announced by now)
-    - cron: '30 6 * * *'
-    # 08:45 UTC ~= 16:45 Taipei / 17:45 Tokyo (final pass before typical evening first pitch)
-    - cron: '45 8 * * *'
+    # Timed 15min after the local CPBL update task (see scripts/update_cpbl_and_push.bat
+    # + README) so this run picks up freshly-pushed CPBL data rather than racing it —
+    # CPBL's own site blocks GitHub Actions' published IP ranges, so that half of the
+    # fetch has to run from the user's machine; everything else here is unaffected.
+    # 01:45 UTC ~= 09:45 Taipei / 10:45 Tokyo (morning pass)
+    - cron: '45 1 * * *'
+    # 06:45 UTC ~= 14:45 Taipei / 15:45 Tokyo (afternoon, most starters announced by now)
+    - cron: '45 6 * * *'
+    # 09:00 UTC ~= 17:00 Taipei / 18:00 Tokyo (final pass before typical evening first pitch)
+    - cron: '0 9 * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -29,21 +33,21 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # Each fetcher is independent and best-effort here: a failure in one
-      # (site markup change, transient network error) must not block the
-      # others, and must never touch that source's existing data/*.json —
-      # both fetchers only write via a single json.dump() at the very end
-      # of main(), so an exception mid-run leaves the prior file untouched
-      # on disk automatically.
-      - name: Fetch CPBL schedule
-        run: python scripts/fetch_cpbl.py
-        continue-on-error: true
-      - name: Fetch CPBL player stats
-        run: python scripts/fetch_cpbl_players.py
-        continue-on-error: true
-      - name: Fetch CPBL odds (best-effort)
-        run: python scripts/fetch_cpbl_odds.py
-        continue-on-error: true
+      # CPBL is NOT fetched here — www.cpbl.com.tw blocks GitHub Actions'
+      # published IP ranges (confirmed: 404 on every CPBL endpoint from this
+      # runner, while the exact same requests succeed from a residential/
+      # other-cloud IP). data/cpbl_*.json is instead kept fresh by a
+      # Windows Task Scheduler job on the user's machine that pushes
+      # straight to this repo — see scripts/update_cpbl_and_push.bat and the
+      # README. This job just uses whatever CPBL data is currently in the
+      # repo (possibly a few hours old, never older than ~8h given that
+      # schedule) and fetches NPB fresh itself.
+      #
+      # Each fetcher below is independent and best-effort: a failure must
+      # not block the others, and must never touch that source's existing
+      # data/*.json — the fetcher only writes via a single json.dump() at
+      # the very end of main(), so an exception mid-run leaves the prior
+      # file untouched on disk automatically.
       - name: Fetch NPB schedule
         run: python scripts/fetch_npb.py
         continue-on-error: true
@@ -53,7 +57,7 @@ jobs:
 
       # Locking is NOT best-effort in the same sense — a game_id, once
       # written, is never revisited, so this only locks games for a league
-      # whose fetch actually produced fresh data this run (see
+      # whose data is actually present and fresh enough this run (see
       # lock_predictions.py's own FileNotFoundError handling for the
       # degenerate case where a data file has never existed at all).
       - name: Lock today's predictions
