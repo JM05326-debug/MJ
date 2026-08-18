@@ -1,0 +1,48 @@
+name: Weekly train
+
+on:
+  schedule:
+    # Monday 18:00 UTC — after a full week of results have been collected
+    - cron: '0 18 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r requirements.txt
+
+      - name: Assemble training dataset
+        run: python pipeline/build_dataset.py
+
+      # A real error here (not "insufficient data", which exits 0) should
+      # fail the job loudly — see train_model.py's own comment. Do NOT mark
+      # this continue-on-error.
+      - name: Train challenger
+        run: python pipeline/train_model.py
+
+      - name: Validate and (maybe) promote
+        run: python pipeline/validate_promote.py
+
+      - name: Rebuild dashboard
+        if: always()
+        run: python pipeline/build_dashboard.py
+
+      - name: Commit and push
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase
+          git add dataset/ models/ docs/
+          git diff --cached --quiet || git commit -m "weekly train: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push

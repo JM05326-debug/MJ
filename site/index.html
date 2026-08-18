@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPBL / NPB 賽事預測</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-home:    #2a78d6; /* blue */
+    --series-away:    #eb6834; /* orange */
+    --good:           #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-home:    #3987e5;
+      --series-away:    #d95926;
+      --good:           #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-home:    #3987e5;
+    --series-away:    #d95926;
+    --good:           #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  header.top { margin-bottom: 20px; }
+  header.top h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  header.top p { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+
+  .tabs {
+    display: flex; gap: 8px; margin: 20px 0 16px;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .tab-btn {
+    appearance: none; border: none; background: none; cursor: pointer;
+    padding: 10px 4px; font-size: 1rem; font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-right: 20px;
+  }
+  .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--series-home); }
+
+  .league { display: none; }
+  .league.active { display: block; }
+
+  section { margin-bottom: 32px; }
+  h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .section-sub { color: var(--text-muted); font-size: 0.82rem; margin: 0 0 12px; }
+
+  .table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+  table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .elo-bar-cell { display: flex; align-items: center; gap: 8px; }
+  .elo-bar-track { flex: 1; height: 6px; border-radius: 3px; background: var(--gridline); overflow: hidden; }
+  .elo-bar-fill { height: 100%; background: var(--series-home); border-radius: 3px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .game-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px;
+  }
+  .game-card .date { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 8px; }
+  .matchup-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .matchup-row .team { font-weight: 600; font-size: 0.92rem; }
+  .matchup-row .pct { font-variant-numeric: tabular-nums; font-size: 0.92rem; color: var(--text-secondary); }
+  .split-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 8px 0 10px; background: var(--gridline); }
+  .split-bar .home { background: var(--series-home); }
+  .split-bar .away { background: var(--series-away); }
+  .score-line { font-size: 0.78rem; color: var(--text-muted); }
+  .away-tag::before { content: "客"; display:inline-block; font-size:0.65rem; color: var(--series-away); border:1px solid var(--series-away); border-radius:3px; padding:0 4px; margin-right:6px; }
+  .home-tag::before { content: "主"; display:inline-block; font-size:0.65rem; color: var(--series-home); border:1px solid var(--series-home); border-radius:3px; padding:0 4px; margin-right:6px; }
+
+  .pitcher-block { border-top: 1px solid var(--gridline); margin-top: 10px; padding-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .pitcher-block .side { min-width: 0; }
+  .pitcher-block .p-name { font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pitcher-block .p-hand { color: var(--text-muted); font-weight: 400; }
+  .pitcher-block .p-stats { font-size: 0.72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; line-height: 1.5; }
+  .pitcher-block .p-unknown { font-size: 0.76rem; color: var(--text-muted); font-style: italic; }
+  .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-secondary); }
+  .badge.fatigue-warn { color: var(--series-away); border-color: var(--series-away); }
+
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .confidence-badge { font-size: 0.66rem; padding: 2px 8px; border-radius: 10px; font-weight: 700; white-space: nowrap; }
+  .confidence-badge.conf-1 { background: rgba(12,163,12,0.14); color: var(--good); }
+  .confidence-badge.conf-2 { background: rgba(42,120,214,0.14); color: var(--series-home); }
+  .confidence-badge.conf-3 { background: var(--gridline); color: var(--text-secondary); }
+  .confidence-badge.conf-4 { background: rgba(235,104,52,0.14); color: var(--series-away); }
+  .confidence-badge.conf-5 { background: rgba(227,73,72,0.14); color: #e34948; }
+
+  .ev-block { border-top: 1px solid var(--gridline); margin-top: 10px; padding-top: 8px; }
+  .ev-title { font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); margin: 0 0 6px; cursor: pointer; user-select: none; }
+  .ev-title::after { content: "▾"; color: var(--text-muted); float: right; }
+  .ev-title.collapsed::after { content: "▸"; }
+  .ev-body { display: none; }
+  .ev-body.open { display: block; }
+  .ev-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .ev-field { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 68px; }
+  .ev-field label { font-size: 0.64rem; color: var(--text-muted); }
+  .ev-field input {
+    font-size: 0.8rem; padding: 5px 6px; border-radius: 5px; border: 1px solid var(--baseline);
+    background: var(--page); color: var(--text-primary); width: 100%; box-sizing: border-box;
+  }
+  .ev-result-row { display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-secondary); padding: 2px 0; font-variant-numeric: tabular-nums; }
+  .ev-result-row .verdict { font-weight: 700; }
+  .ev-result-row .verdict.positive { color: var(--good); }
+  .ev-result-row .verdict.negative { color: var(--text-muted); }
+  .ev-sub { font-size: 0.68rem; color: var(--text-muted); margin: 6px 0 2px; }
+
+  .calc-box {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 18px;
+  }
+  .calc-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.78rem; color: var(--text-muted); }
+  select {
+    font-size: 0.9rem; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--baseline);
+    background: var(--surface-1); color: var(--text-primary); min-width: 160px;
+  }
+  .calc-result { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--gridline); }
+
+  .update-box {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+    background: var(--surface-1); border: 1px solid var(--border);
+  }
+  .update-btn {
+    appearance: none; border: 1px solid var(--series-home); background: none; color: var(--series-home);
+    font-size: 0.82rem; font-weight: 600; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+  }
+  .update-btn:hover { background: var(--series-home); color: #fff; }
+  .update-hint { font-size: 0.76rem; color: var(--text-muted); }
+  .update-path { font-size: 0.72rem; color: var(--text-secondary); background: var(--page); padding: 2px 6px; border-radius: 4px; }
+
+  footer { color: var(--text-muted); font-size: 0.78rem; margin-top: 40px; line-height: 1.6; }
+  .legend { display:flex; gap:16px; font-size:0.78rem; color:var(--text-muted); margin-bottom:10px; }
+  .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  .legend .l-home::before { background: var(--series-home); }
+  .legend .l-away::before { background: var(--series-away); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>⚾ CPBL / NPB 賽事預測模型</h1>
+    <p>資料更新時間：2026-08-16 10:04 ・ 模型：Elo 戰力評分 + Poisson 得分模型（各自加權平均）</p>
+    <div class="update-box">
+      <button class="update-btn" id="updateBtn">🔄 更新資料</button>
+      <span class="update-hint" id="updateHint">點一下會複製更新指令，貼到終端機執行；或直接雙擊 <span class="update-path">update_data.bat</span></span>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-league="cpbl">CPBL 中華職棒</button>
+    <button class="tab-btn" data-league="npb">NPB 日本職棒</button>
+  </div>
+
+  <div id="league-cpbl" class="league active"></div>
+  <div id="league-npb" class="league"></div>
+
+  <footer>
+    <p><strong>模型說明：</strong>Elo 評分自 2019 年起依歷史賽果逐場更新（K=20，主場優勢 +50 分），反映球隊長期戰力；Poisson 得分模型以近期戰績為主（半衰期 180 天）估算主客兩隊預期得分。當賽程已公布先發投手時，會再疊加先發投手 FIP、牛棚 ERA 與近7天用量疲勞、以及球隊對戰左右投手的歷史得分傾向，微調預期得分（新資訊與原有球隊歷史數據各佔一半權重，避免重複計算）；未公布先發或樣本不足時自動略過該項調整。最終勝率為 Elo 與 Poisson 兩模型平均值。信心等級綜合勝率差距、兩模型一致性與資料完整度計算，不是單純的勝率高低。EV 分析需自行輸入賠率（CPBL 賽事若玩運彩已開盤會自動帶入），僅為數學期望值計算，不代表獲勝保證，僅供參考娛樂，不構成任何投注建議。</p>
+    <p>資料來源：CPBL 官方網站賽程與球員數據系統、NPB.jp 日本野球機構官方網站（球隊數據表與逐場成績）、玩運彩 playsport.cc（CPBL 先發投手與即時賠率，最佳努力取得，未開盤時不影響其他功能）。本頁資料為手動更新，點擊上方「更新資料」按鈕取得指令，或雙擊專案資料夾中的 update_data.bat 重新擷取資料並產生新版網頁。</p>
+  </footer>
+</div>
+
+<script>
+const DATA = {"cpbl": {"name": "CPBL 中華職棒", "rankings": [{"rank": 1, "team": "味全龍", "elo": 1577.9, "offense": 1.036, "defense": 0.832, "recent_form": "7-3", "team_ops": 0.674, "bullpen_era": 2.71}, {"rank": 2, "team": "樂天桃猿", "elo": 1506.6, "offense": 0.904, "defense": 0.985, "recent_form": "5-5", "team_ops": 0.642, "bullpen_era": 2.69}, {"rank": 3, "team": "統一7-ELEVEn獅", "elo": 1492.7, "offense": 0.983, "defense": 0.908, "recent_form": "5-5", "team_ops": 0.688, "bullpen_era": 2.27}, {"rank": 4, "team": "富邦悍將", "elo": 1487.1, "offense": 0.943, "defense": 1.095, "recent_form": "5-5", "team_ops": 0.703, "bullpen_era": 3.78}, {"rank": 5, "team": "中信兄弟", "elo": 1478.0, "offense": 1.086, "defense": 1.109, "recent_form": "7-3", "team_ops": 0.695, "bullpen_era": 3.02}, {"rank": 6, "team": "台鋼雄鷹", "elo": 1457.8, "offense": 1.048, "defense": 1.071, "recent_form": "3-7", "team_ops": 0.706, "bullpen_era": 3.55}], "predictions": [{"home": "味全龍", "away": "樂天桃猿", "home_starter": "伍鐸", "away_starter": "林子崴", "elo_home_rating": 1577.9, "elo_away_rating": 1506.6, "elo_home_win_pct": 66.8, "poisson_home_win_pct": 71.1, "blended_home_win_pct": 68.9, "blended_away_win_pct": 31.1, "predicted_home_runs": 4.3, "predicted_away_runs": 2.8, "context": {"home_pitcher_factor": 1.175, "away_pitcher_factor": 0.872, "home_bullpen_factor": 0.907, "away_bullpen_factor": 0.901, "home_hand_factor": 1.167, "away_hand_factor": 0.898}, "confidence_score": 66.4, "confidence_label": "中高", "date": "2026-08-16", "home_pitcher_stats": {"name": "伍鐸", "hand": "右投右打", "era": 4.06, "whip": 1.23, "k9": 3.11, "bb9": 2.03, "last5_era": 4.2}, "away_pitcher_stats": {"name": "林子崴", "hand": "左投左打", "era": 1.38, "whip": 1.07, "k9": 4.93, "bb9": 1.97, "last5_era": 0.0}, "market_odds": {"home_moneyline": null, "away_moneyline": null, "ou_line": null, "over_odds": null, "under_odds": null}}, {"home": "統一7-ELEVEn獅", "away": "富邦悍將", "home_starter": "張宥謙", "away_starter": "江國豪", "elo_home_rating": 1492.7, "elo_away_rating": 1487.1, "elo_home_win_pct": 57.9, "poisson_home_win_pct": 77.4, "blended_home_win_pct": 67.7, "blended_away_win_pct": 32.3, "predicted_home_runs": 5.04, "predicted_away_runs": 2.9, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.778, "away_bullpen_factor": 1.272, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 36.0, "confidence_label": "偏低", "date": "2026-08-16", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": {"home_moneyline": null, "away_moneyline": null, "ou_line": null, "over_odds": null, "under_odds": null}}, {"home": "中信兄弟", "away": "台鋼雄鷹", "home_starter": "羅戈", "away_starter": "陳正毅", "elo_home_rating": 1478.0, "elo_away_rating": 1457.8, "elo_home_win_pct": 60.0, "poisson_home_win_pct": 61.4, "blended_home_win_pct": 60.7, "blended_away_win_pct": 39.3, "predicted_home_runs": 4.97, "predicted_away_runs": 4.09, "context": {"home_pitcher_factor": 0.861, "away_pitcher_factor": 1.099, "home_bullpen_factor": 1.019, "away_bullpen_factor": 1.228, "home_hand_factor": 0.925, "away_hand_factor": 0.908}, "confidence_score": 59.8, "confidence_label": "中高", "date": "2026-08-16", "home_pitcher_stats": {"name": "羅戈", "hand": "右投右打", "era": 3.11, "whip": 1.17, "k9": 6.71, "bb9": 2.21, "last5_era": 3.13}, "away_pitcher_stats": {"name": "陳正毅", "hand": "右投右打", "era": 4.22, "whip": 2.25, "k9": 5.91, "bb9": 6.75, "last5_era": 5.68}, "market_odds": {"home_moneyline": null, "away_moneyline": null, "ou_line": null, "over_odds": null, "under_odds": null}}, {"home": "台鋼雄鷹", "away": "統一7-ELEVEn獅", "home_starter": "", "away_starter": "", "elo_home_rating": 1457.8, "elo_away_rating": 1492.7, "elo_home_win_pct": 52.2, "poisson_home_win_pct": 36.5, "blended_home_win_pct": 44.3, "blended_away_win_pct": 55.7, "predicted_home_runs": 3.48, "predicted_away_runs": 4.47, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.228, "away_bullpen_factor": 0.778, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 26.3, "confidence_label": "偏低", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "樂天桃猿", "away": "富邦悍將", "home_starter": "", "away_starter": "", "elo_home_rating": 1506.6, "elo_away_rating": 1487.1, "elo_home_win_pct": 59.9, "poisson_home_win_pct": 67.0, "blended_home_win_pct": 63.4, "blended_away_win_pct": 36.6, "predicted_home_runs": 4.63, "predicted_away_runs": 3.37, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.901, "away_bullpen_factor": 1.272, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 39.2, "confidence_label": "偏低", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "台鋼雄鷹", "away": "統一7-ELEVEn獅", "home_starter": "", "away_starter": "", "elo_home_rating": 1457.8, "elo_away_rating": 1492.7, "elo_home_win_pct": 52.2, "poisson_home_win_pct": 36.5, "blended_home_win_pct": 44.3, "blended_away_win_pct": 55.7, "predicted_home_runs": 3.48, "predicted_away_runs": 4.47, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.228, "away_bullpen_factor": 0.778, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 26.3, "confidence_label": "偏低", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "樂天桃猿", "away": "富邦悍將", "home_starter": "", "away_starter": "", "elo_home_rating": 1506.6, "elo_away_rating": 1487.1, "elo_home_win_pct": 59.9, "poisson_home_win_pct": 67.0, "blended_home_win_pct": 63.4, "blended_away_win_pct": 36.6, "predicted_home_runs": 4.63, "predicted_away_runs": 3.37, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.901, "away_bullpen_factor": 1.272, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 39.2, "confidence_label": "偏低", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "味全龍", "away": "中信兄弟", "home_starter": "", "away_starter": "", "elo_home_rating": 1577.9, "elo_away_rating": 1478.0, "elo_home_win_pct": 70.3, "poisson_home_win_pct": 69.9, "blended_home_win_pct": 70.1, "blended_away_win_pct": 29.9, "predicted_home_runs": 4.78, "predicted_away_runs": 3.29, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.907, "away_bullpen_factor": 1.019, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 49.8, "confidence_label": "中", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "味全龍", "away": "中信兄弟", "home_starter": "", "away_starter": "", "elo_home_rating": 1577.9, "elo_away_rating": 1478.0, "elo_home_win_pct": 70.3, "poisson_home_win_pct": 69.9, "blended_home_win_pct": 70.1, "blended_away_win_pct": 29.9, "predicted_home_runs": 4.78, "predicted_away_runs": 3.29, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.907, "away_bullpen_factor": 1.019, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 49.8, "confidence_label": "中", "date": "2026-08-20", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "台鋼雄鷹", "away": "樂天桃猿", "home_starter": "", "away_starter": "", "elo_home_rating": 1457.8, "elo_away_rating": 1506.6, "elo_home_win_pct": 50.2, "poisson_home_win_pct": 49.0, "blended_home_win_pct": 49.6, "blended_away_win_pct": 50.4, "predicted_home_runs": 4.04, "predicted_away_runs": 4.11, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.228, "away_bullpen_factor": 0.901, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 29.7, "confidence_label": "偏低", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "統一7-ELEVEn獅", "away": "中信兄弟", "home_starter": "", "away_starter": "", "elo_home_rating": 1492.7, "elo_away_rating": 1478.0, "elo_home_win_pct": 59.2, "poisson_home_win_pct": 66.2, "blended_home_win_pct": 62.7, "blended_away_win_pct": 37.3, "predicted_home_runs": 4.54, "predicted_away_runs": 3.34, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.778, "away_bullpen_factor": 1.019, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 38.5, "confidence_label": "偏低", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "味全龍", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1577.9, "elo_home_win_pct": 44.1, "poisson_home_win_pct": 26.0, "blended_home_win_pct": 35.1, "blended_away_win_pct": 64.9, "predicted_home_runs": 3.08, "predicted_away_runs": 4.92, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 0.907, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 34.0, "confidence_label": "偏低", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "台鋼雄鷹", "away": "樂天桃猿", "home_starter": "", "away_starter": "", "elo_home_rating": 1457.8, "elo_away_rating": 1506.6, "elo_home_win_pct": 50.2, "poisson_home_win_pct": 49.0, "blended_home_win_pct": 49.6, "blended_away_win_pct": 50.4, "predicted_home_runs": 4.04, "predicted_away_runs": 4.11, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.228, "away_bullpen_factor": 0.901, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 29.7, "confidence_label": "偏低", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "統一7-ELEVEn獅", "away": "中信兄弟", "home_starter": "", "away_starter": "", "elo_home_rating": 1492.7, "elo_away_rating": 1478.0, "elo_home_win_pct": 59.2, "poisson_home_win_pct": 66.2, "blended_home_win_pct": 62.7, "blended_away_win_pct": 37.3, "predicted_home_runs": 4.54, "predicted_away_runs": 3.34, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.778, "away_bullpen_factor": 1.019, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 38.5, "confidence_label": "偏低", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "味全龍", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1577.9, "elo_home_win_pct": 44.1, "poisson_home_win_pct": 26.0, "blended_home_win_pct": 35.1, "blended_away_win_pct": 64.9, "predicted_home_runs": 3.08, "predicted_away_runs": 4.92, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 0.907, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 34.0, "confidence_label": "偏低", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "台鋼雄鷹", "away": "樂天桃猿", "home_starter": "", "away_starter": "", "elo_home_rating": 1457.8, "elo_away_rating": 1506.6, "elo_home_win_pct": 50.2, "poisson_home_win_pct": 49.0, "blended_home_win_pct": 49.6, "blended_away_win_pct": 50.4, "predicted_home_runs": 4.04, "predicted_away_runs": 4.11, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.228, "away_bullpen_factor": 0.901, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 29.7, "confidence_label": "偏低", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "統一7-ELEVEn獅", "away": "中信兄弟", "home_starter": "", "away_starter": "", "elo_home_rating": 1492.7, "elo_away_rating": 1478.0, "elo_home_win_pct": 59.2, "poisson_home_win_pct": 66.2, "blended_home_win_pct": 62.7, "blended_away_win_pct": 37.3, "predicted_home_runs": 4.54, "predicted_away_runs": 3.34, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.778, "away_bullpen_factor": 1.019, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 38.5, "confidence_label": "偏低", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "味全龍", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1577.9, "elo_home_win_pct": 44.1, "poisson_home_win_pct": 26.0, "blended_home_win_pct": 35.1, "blended_away_win_pct": 64.9, "predicted_home_runs": 3.08, "predicted_away_runs": 4.92, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 0.907, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 34.0, "confidence_label": "偏低", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中信兄弟", "away": "樂天桃猿", "home_starter": "", "away_starter": "", "elo_home_rating": 1478.0, "elo_away_rating": 1506.6, "elo_home_win_pct": 53.1, "poisson_home_win_pct": 54.5, "blended_home_win_pct": 53.8, "blended_away_win_pct": 46.2, "predicted_home_runs": 4.19, "predicted_away_runs": 3.86, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.019, "away_bullpen_factor": 0.901, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 32.9, "confidence_label": "偏低", "date": "2026-08-25", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "統一7-ELEVEn獅", "away": "味全龍", "home_starter": "", "away_starter": "", "elo_home_rating": 1492.7, "elo_away_rating": 1577.9, "elo_home_win_pct": 45.0, "poisson_home_win_pct": 50.3, "blended_home_win_pct": 47.6, "blended_away_win_pct": 52.4, "predicted_home_runs": 3.21, "predicted_away_runs": 3.19, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.778, "away_bullpen_factor": 0.907, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 29.1, "confidence_label": "偏低", "date": "2026-08-25", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中信兄弟", "away": "樂天桃猿", "home_starter": "", "away_starter": "", "elo_home_rating": 1478.0, "elo_away_rating": 1506.6, "elo_home_win_pct": 53.1, "poisson_home_win_pct": 54.5, "blended_home_win_pct": 53.8, "blended_away_win_pct": 46.2, "predicted_home_runs": 4.19, "predicted_away_runs": 3.86, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.019, "away_bullpen_factor": 0.901, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 32.9, "confidence_label": "偏低", "date": "2026-08-26", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "統一7-ELEVEn獅", "away": "味全龍", "home_starter": "", "away_starter": "", "elo_home_rating": 1492.7, "elo_away_rating": 1577.9, "elo_home_win_pct": 45.0, "poisson_home_win_pct": 50.3, "blended_home_win_pct": 47.6, "blended_away_win_pct": 52.4, "predicted_home_runs": 3.21, "predicted_away_runs": 3.19, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.778, "away_bullpen_factor": 0.907, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 29.1, "confidence_label": "偏低", "date": "2026-08-26", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "台鋼雄鷹", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1457.8, "elo_home_win_pct": 61.2, "poisson_home_win_pct": 45.7, "blended_home_win_pct": 53.5, "blended_away_win_pct": 46.5, "predicted_home_runs": 4.64, "predicted_away_runs": 4.97, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 1.228, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 24.2, "confidence_label": "不建議", "date": "2026-08-26", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "台鋼雄鷹", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1457.8, "elo_home_win_pct": 61.2, "poisson_home_win_pct": 45.7, "blended_home_win_pct": 53.5, "blended_away_win_pct": 46.5, "predicted_home_runs": 4.64, "predicted_away_runs": 4.97, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 1.228, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 24.2, "confidence_label": "不建議", "date": "2026-08-27", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中信兄弟", "away": "富邦悍將", "home_starter": "", "away_starter": "", "elo_home_rating": 1478.0, "elo_away_rating": 1487.1, "elo_home_win_pct": 55.9, "poisson_home_win_pct": 68.8, "blended_home_win_pct": 62.3, "blended_away_win_pct": 37.7, "predicted_home_runs": 5.56, "predicted_away_runs": 4.03, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.019, "away_bullpen_factor": 1.272, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 34.6, "confidence_label": "偏低", "date": "2026-08-28", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "樂天桃猿", "away": "統一7-ELEVEn獅", "home_starter": "", "away_starter": "", "elo_home_rating": 1506.6, "elo_away_rating": 1492.7, "elo_home_win_pct": 59.1, "poisson_home_win_pct": 42.3, "blended_home_win_pct": 50.7, "blended_away_win_pct": 49.3, "predicted_home_runs": 3.01, "predicted_away_runs": 3.51, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.901, "away_bullpen_factor": 0.778, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 20.6, "confidence_label": "不建議", "date": "2026-08-28", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "味全龍", "away": "台鋼雄鷹", "home_starter": "", "away_starter": "", "elo_home_rating": 1577.9, "elo_away_rating": 1457.8, "elo_home_win_pct": 72.7, "poisson_home_win_pct": 74.6, "blended_home_win_pct": 73.7, "blended_away_win_pct": 26.3, "predicted_home_runs": 5.09, "predicted_away_runs": 3.17, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.907, "away_bullpen_factor": 1.228, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 52.5, "confidence_label": "中", "date": "2026-08-28", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中信兄弟", "away": "富邦悍將", "home_starter": "", "away_starter": "", "elo_home_rating": 1478.0, "elo_away_rating": 1487.1, "elo_home_win_pct": 55.9, "poisson_home_win_pct": 68.8, "blended_home_win_pct": 62.3, "blended_away_win_pct": 37.7, "predicted_home_runs": 5.56, "predicted_away_runs": 4.03, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.019, "away_bullpen_factor": 1.272, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 34.6, "confidence_label": "偏低", "date": "2026-08-29", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "樂天桃猿", "away": "統一7-ELEVEn獅", "home_starter": "", "away_starter": "", "elo_home_rating": 1506.6, "elo_away_rating": 1492.7, "elo_home_win_pct": 59.1, "poisson_home_win_pct": 42.3, "blended_home_win_pct": 50.7, "blended_away_win_pct": 49.3, "predicted_home_runs": 3.01, "predicted_away_runs": 3.51, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.901, "away_bullpen_factor": 0.778, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 20.6, "confidence_label": "不建議", "date": "2026-08-29", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "味全龍", "away": "台鋼雄鷹", "home_starter": "", "away_starter": "", "elo_home_rating": 1577.9, "elo_away_rating": 1457.8, "elo_home_win_pct": 72.7, "poisson_home_win_pct": 74.6, "blended_home_win_pct": 73.7, "blended_away_win_pct": 26.3, "predicted_home_runs": 5.09, "predicted_away_runs": 3.17, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.907, "away_bullpen_factor": 1.228, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 52.5, "confidence_label": "中", "date": "2026-08-29", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "味全龍", "away": "台鋼雄鷹", "home_starter": "", "away_starter": "", "elo_home_rating": 1577.9, "elo_away_rating": 1457.8, "elo_home_win_pct": 72.7, "poisson_home_win_pct": 74.6, "blended_home_win_pct": 73.7, "blended_away_win_pct": 26.3, "predicted_home_runs": 5.09, "predicted_away_runs": 3.17, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.907, "away_bullpen_factor": 1.228, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 52.5, "confidence_label": "中", "date": "2026-08-30", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中信兄弟", "away": "富邦悍將", "home_starter": "", "away_starter": "", "elo_home_rating": 1478.0, "elo_away_rating": 1487.1, "elo_home_win_pct": 55.9, "poisson_home_win_pct": 68.8, "blended_home_win_pct": 62.3, "blended_away_win_pct": 37.7, "predicted_home_runs": 5.56, "predicted_away_runs": 4.03, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.019, "away_bullpen_factor": 1.272, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 34.6, "confidence_label": "偏低", "date": "2026-08-30", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "樂天桃猿", "away": "統一7-ELEVEn獅", "home_starter": "", "away_starter": "", "elo_home_rating": 1506.6, "elo_away_rating": 1492.7, "elo_home_win_pct": 59.1, "poisson_home_win_pct": 42.3, "blended_home_win_pct": 50.7, "blended_away_win_pct": 49.3, "predicted_home_runs": 3.01, "predicted_away_runs": 3.51, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.901, "away_bullpen_factor": 0.778, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 20.6, "confidence_label": "不建議", "date": "2026-08-30", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "統一7-ELEVEn獅", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1492.7, "elo_home_win_pct": 56.3, "poisson_home_win_pct": 29.4, "blended_home_win_pct": 42.9, "blended_away_win_pct": 57.1, "predicted_home_runs": 3.14, "predicted_away_runs": 4.66, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 0.778, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 21.0, "confidence_label": "不建議", "date": "2026-09-01", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "台鋼雄鷹", "away": "中信兄弟", "home_starter": "", "away_starter": "", "elo_home_rating": 1457.8, "elo_away_rating": 1478.0, "elo_home_win_pct": 54.3, "poisson_home_win_pct": 48.7, "blended_home_win_pct": 51.5, "blended_away_win_pct": 48.5, "predicted_home_runs": 4.84, "predicted_away_runs": 4.94, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.228, "away_bullpen_factor": 1.019, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.1, "confidence_label": "偏低", "date": "2026-09-01", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "統一7-ELEVEn獅", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1492.7, "elo_home_win_pct": 56.3, "poisson_home_win_pct": 29.4, "blended_home_win_pct": 42.9, "blended_away_win_pct": 57.1, "predicted_home_runs": 3.14, "predicted_away_runs": 4.66, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 0.778, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 21.0, "confidence_label": "不建議", "date": "2026-09-02", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "台鋼雄鷹", "away": "中信兄弟", "home_starter": "", "away_starter": "", "elo_home_rating": 1457.8, "elo_away_rating": 1478.0, "elo_home_win_pct": 54.3, "poisson_home_win_pct": 48.7, "blended_home_win_pct": 51.5, "blended_away_win_pct": 48.5, "predicted_home_runs": 4.84, "predicted_away_runs": 4.94, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.228, "away_bullpen_factor": 1.019, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.1, "confidence_label": "偏低", "date": "2026-09-02", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "樂天桃猿", "away": "味全龍", "home_starter": "", "away_starter": "", "elo_home_rating": 1506.6, "elo_away_rating": 1577.9, "elo_home_win_pct": 46.9, "poisson_home_win_pct": 38.8, "blended_home_win_pct": 42.9, "blended_away_win_pct": 57.1, "predicted_home_runs": 2.96, "predicted_away_runs": 3.7, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.901, "away_bullpen_factor": 0.907, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 32.3, "confidence_label": "偏低", "date": "2026-09-02", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "樂天桃猿", "away": "味全龍", "home_starter": "", "away_starter": "", "elo_home_rating": 1506.6, "elo_away_rating": 1577.9, "elo_home_win_pct": 46.9, "poisson_home_win_pct": 38.8, "blended_home_win_pct": 42.9, "blended_away_win_pct": 57.1, "predicted_home_runs": 2.96, "predicted_away_runs": 3.7, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.901, "away_bullpen_factor": 0.907, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 32.3, "confidence_label": "偏低", "date": "2026-09-03", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "富邦悍將", "away": "樂天桃猿", "home_starter": "", "away_starter": "", "elo_home_rating": 1487.1, "elo_away_rating": 1506.6, "elo_home_win_pct": 54.4, "poisson_home_win_pct": 41.0, "blended_home_win_pct": 47.7, "blended_away_win_pct": 52.3, "predicted_home_runs": 3.64, "predicted_away_runs": 4.29, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.272, "away_bullpen_factor": 0.901, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 24.3, "confidence_label": "不建議", "date": "2026-09-04", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}], "team_list": ["味全龍", "樂天桃猿", "統一7-ELEVEn獅", "富邦悍將", "中信兄弟", "台鋼雄鷹"], "elo_ratings": {"樂天桃猿": 1506.6, "統一7-ELEVEn獅": 1492.7, "中信兄弟": 1478.0, "富邦悍將": 1487.1, "味全龍": 1577.9, "台鋼雄鷹": 1457.8}, "poisson": {"offense": {"樂天桃猿": 0.904, "統一7-ELEVEn獅": 0.983, "中信兄弟": 1.086, "富邦悍將": 0.943, "味全龍": 1.036, "台鋼雄鷹": 1.048}, "defense": {"樂天桃猿": 0.985, "統一7-ELEVEn獅": 0.908, "中信兄弟": 1.109, "富邦悍將": 1.095, "味全龍": 0.832, "台鋼雄鷹": 1.071}, "league_avg_runs": 3.816}, "last_game_date": "2026-08-15", "total_games": 2357, "has_player_data": true}, "npb": {"name": "NPB 日本職棒", "rankings": [{"rank": 1, "team": "ソフトバンク", "elo": 1630.8, "offense": 1.284, "defense": 0.885, "recent_form": "5-5", "team_ops": 0.74, "bullpen_era": 4.51}, {"rank": 2, "team": "日本ハム", "elo": 1573.7, "offense": 1.121, "defense": 0.938, "recent_form": "5-5", "team_ops": 0.73, "bullpen_era": 3.42}, {"rank": 3, "team": "西武", "elo": 1550.0, "offense": 0.935, "defense": 0.951, "recent_form": "4-6", "team_ops": 0.666, "bullpen_era": 2.13}, {"rank": 4, "team": "ロッテ", "elo": 1520.2, "offense": 0.98, "defense": 1.123, "recent_form": "6-4", "team_ops": 0.656, "bullpen_era": 4.1}, {"rank": 5, "team": "阪神", "elo": 1501.3, "offense": 1.025, "defense": 0.853, "recent_form": "5-5", "team_ops": 0.686, "bullpen_era": 2.74}, {"rank": 6, "team": "オリックス", "elo": 1493.6, "offense": 0.987, "defense": 1.099, "recent_form": "5-5", "team_ops": 0.669, "bullpen_era": 5.07}, {"rank": 7, "team": "巨人", "elo": 1484.9, "offense": 0.944, "defense": 0.925, "recent_form": "5-5", "team_ops": 0.646, "bullpen_era": 2.91}, {"rank": 8, "team": "中日", "elo": 1476.6, "offense": 0.921, "defense": 0.93, "recent_form": "6-4", "team_ops": 0.65, "bullpen_era": 2.8}, {"rank": 9, "team": "DeNA", "elo": 1476.5, "offense": 1.093, "defense": 1.033, "recent_form": "6-4", "team_ops": 0.678, "bullpen_era": 2.79}, {"rank": 10, "team": "楽天", "elo": 1471.1, "offense": 0.927, "defense": 1.14, "recent_form": "5-5", "team_ops": 0.66, "bullpen_era": 5.1}, {"rank": 11, "team": "広島", "elo": 1418.1, "offense": 0.852, "defense": 1.029, "recent_form": "4-6", "team_ops": 0.616, "bullpen_era": 4.62}, {"rank": 12, "team": "ヤクルト", "elo": 1403.2, "offense": 0.908, "defense": 1.108, "recent_form": "4-6", "team_ops": 0.628, "bullpen_era": 2.92}], "predictions": [{"home": "DeNA", "away": "ヤクルト", "home_starter": "片山", "away_starter": "松本健", "elo_home_rating": 1476.5, "elo_away_rating": 1403.2, "elo_home_win_pct": 67.0, "poisson_home_win_pct": 65.7, "blended_home_win_pct": 66.3, "blended_away_win_pct": 33.7, "predicted_home_runs": 4.41, "predicted_away_runs": 3.28, "context": {"home_pitcher_factor": 1.065, "away_pitcher_factor": null, "home_bullpen_factor": 0.874, "away_bullpen_factor": 0.91, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 50.5, "confidence_label": "中", "date": "2026-08-16", "home_pitcher_stats": {"name": "片山　楽生", "hand": "", "era": 4.06, "whip": 1.26, "k9": 6.1, "bb9": 2.9, "last5_era": 5.69}, "away_pitcher_stats": null, "market_odds": null}, {"home": "巨人", "away": "中日", "home_starter": "小笠原", "away_starter": "柳", "elo_home_rating": 1484.9, "elo_away_rating": 1476.6, "elo_home_win_pct": 58.3, "poisson_home_win_pct": 54.7, "blended_home_win_pct": 56.5, "blended_away_win_pct": 43.5, "predicted_home_runs": 3.18, "predicted_away_runs": 2.88, "context": {"home_pitcher_factor": 0.868, "away_pitcher_factor": 0.913, "home_bullpen_factor": 0.974, "away_bullpen_factor": 0.882, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 44.4, "confidence_label": "中", "date": "2026-08-16", "home_pitcher_stats": {"name": "*小笠原　慎之介", "hand": "", "era": 2.08, "whip": 0.96, "k9": 7.96, "bb9": 0.69, "last5_era": 2.7}, "away_pitcher_stats": {"name": "柳　裕也", "hand": "", "era": 2.52, "whip": 1.12, "k9": 7.32, "bb9": 1.98, "last5_era": 2.65}, "market_odds": null}, {"home": "阪神", "away": "広島", "home_starter": "伊原", "away_starter": "森", "elo_home_rating": 1501.3, "elo_away_rating": 1418.1, "elo_home_win_pct": 68.3, "poisson_home_win_pct": 73.0, "blended_home_win_pct": 70.7, "blended_away_win_pct": 29.3, "predicted_home_runs": 4.19, "predicted_away_runs": 2.57, "context": {"home_pitcher_factor": 1.065, "away_pitcher_factor": 0.945, "home_bullpen_factor": 0.936, "away_bullpen_factor": 1.256, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 57.8, "confidence_label": "中高", "date": "2026-08-16", "home_pitcher_stats": {"name": "*伊原　陵人", "hand": "", "era": 3.48, "whip": 1.45, "k9": 8.71, "bb9": 4.06, "last5_era": 4.32}, "away_pitcher_stats": {"name": "*森　翔平", "hand": "", "era": 2.98, "whip": 1.08, "k9": 7.53, "bb9": 2.35, "last5_era": 4.05}, "market_odds": null}, {"home": "ロッテ", "away": "西武", "home_starter": "毛利", "away_starter": "武内", "elo_home_rating": 1520.2, "elo_away_rating": 1550.0, "elo_home_win_pct": 52.9, "poisson_home_win_pct": 37.9, "blended_home_win_pct": 45.4, "blended_away_win_pct": 54.6, "predicted_home_runs": 3.22, "predicted_away_runs": 4.07, "context": {"home_pitcher_factor": 1.133, "away_pitcher_factor": 0.878, "home_bullpen_factor": 1.267, "away_bullpen_factor": 0.736, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 35.6, "confidence_label": "偏低", "date": "2026-08-16", "home_pitcher_stats": {"name": "*毛利　海大", "hand": "", "era": 4.41, "whip": 1.36, "k9": 5.54, "bb9": 2.98, "last5_era": 0.87}, "away_pitcher_stats": {"name": "*武内　夏暉", "hand": "", "era": 3.06, "whip": 1.06, "k9": 7.02, "bb9": 1.49, "last5_era": 4.66}, "market_odds": null}, {"home": "日本ハム", "away": "オリックス", "home_starter": "有原", "away_starter": "曽谷", "elo_home_rating": 1573.7, "elo_away_rating": 1493.6, "elo_home_win_pct": 67.9, "poisson_home_win_pct": 74.9, "blended_home_win_pct": 71.4, "blended_away_win_pct": 28.6, "predicted_home_runs": 5.22, "predicted_away_runs": 3.26, "context": {"home_pitcher_factor": 0.985, "away_pitcher_factor": 0.948, "home_bullpen_factor": 1.003, "away_bullpen_factor": 1.564, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 57.2, "confidence_label": "中高", "date": "2026-08-16", "home_pitcher_stats": {"name": "有原　航平", "hand": "", "era": 4.2, "whip": 1.26, "k9": 6.99, "bb9": 2.24, "last5_era": 0.0}, "away_pitcher_stats": {"name": "*曽谷　龍平", "hand": "", "era": 3.46, "whip": 1.04, "k9": 8.56, "bb9": 1.15, "last5_era": 7.2}, "market_odds": null}, {"home": "楽天", "away": "ソフトバンク", "home_starter": "古謝", "away_starter": "松本晴", "elo_home_rating": 1471.1, "elo_away_rating": 1630.8, "elo_home_win_pct": 34.7, "poisson_home_win_pct": 23.5, "blended_home_win_pct": 29.1, "blended_away_win_pct": 70.9, "predicted_home_runs": 3.45, "predicted_away_runs": 5.65, "context": {"home_pitcher_factor": 0.993, "away_pitcher_factor": null, "home_bullpen_factor": 1.422, "away_bullpen_factor": 1.204, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 49.1, "confidence_label": "中", "date": "2026-08-16", "home_pitcher_stats": {"name": "*古謝　樹", "hand": "", "era": 3.78, "whip": 1.15, "k9": 7.89, "bb9": 2.22, "last5_era": 2.79}, "away_pitcher_stats": null, "market_odds": null}, {"home": "巨人", "away": "DeNA", "home_starter": "", "away_starter": "", "elo_home_rating": 1484.9, "elo_away_rating": 1476.5, "elo_home_win_pct": 58.3, "poisson_home_win_pct": 49.4, "blended_home_win_pct": 53.9, "blended_away_win_pct": 46.1, "predicted_home_runs": 3.48, "predicted_away_runs": 3.52, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.974, "away_bullpen_factor": 0.874, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.6, "confidence_label": "偏低", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ヤクルト", "away": "阪神", "home_starter": "", "away_starter": "", "elo_home_rating": 1403.2, "elo_away_rating": 1501.3, "elo_home_win_pct": 43.1, "poisson_home_win_pct": 35.6, "blended_home_win_pct": 39.4, "blended_away_win_pct": 60.6, "predicted_home_runs": 2.86, "predicted_away_runs": 3.83, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.91, "away_bullpen_factor": 0.936, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 36.1, "confidence_label": "偏低", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中日", "away": "広島", "home_starter": "", "away_starter": "", "elo_home_rating": 1476.6, "elo_away_rating": 1418.1, "elo_home_win_pct": 65.1, "poisson_home_win_pct": 70.8, "blended_home_win_pct": 68.0, "blended_away_win_pct": 32.0, "predicted_home_runs": 4.08, "predicted_away_runs": 2.63, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.882, "away_bullpen_factor": 1.256, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 44.5, "confidence_label": "中", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ソフトバンク", "away": "日本ハム", "home_starter": "", "away_starter": "", "elo_home_rating": 1630.8, "elo_away_rating": 1573.7, "elo_home_win_pct": 64.9, "poisson_home_win_pct": 59.9, "blended_home_win_pct": 62.4, "blended_away_win_pct": 37.6, "predicted_home_runs": 4.6, "predicted_away_runs": 3.86, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.204, "away_bullpen_factor": 1.003, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 39.4, "confidence_label": "偏低", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ロッテ", "away": "楽天", "home_starter": "", "away_starter": "", "elo_home_rating": 1520.2, "elo_away_rating": 1471.1, "elo_home_win_pct": 63.9, "poisson_home_win_pct": 62.5, "blended_home_win_pct": 63.2, "blended_away_win_pct": 36.8, "predicted_home_runs": 5.16, "predicted_away_runs": 4.17, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.267, "away_bullpen_factor": 1.422, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 42.4, "confidence_label": "中", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "オリックス", "away": "西武", "home_starter": "", "away_starter": "", "elo_home_rating": 1493.6, "elo_away_rating": 1550.0, "elo_home_win_pct": 49.1, "poisson_home_win_pct": 29.1, "blended_home_win_pct": 39.1, "blended_away_win_pct": 60.9, "predicted_home_runs": 3.1, "predicted_away_runs": 4.65, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.564, "away_bullpen_factor": 0.736, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.9, "confidence_label": "偏低", "date": "2026-08-18", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "巨人", "away": "DeNA", "home_starter": "", "away_starter": "", "elo_home_rating": 1484.9, "elo_away_rating": 1476.5, "elo_home_win_pct": 58.3, "poisson_home_win_pct": 49.4, "blended_home_win_pct": 53.9, "blended_away_win_pct": 46.1, "predicted_home_runs": 3.48, "predicted_away_runs": 3.52, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.974, "away_bullpen_factor": 0.874, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.6, "confidence_label": "偏低", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ヤクルト", "away": "阪神", "home_starter": "", "away_starter": "", "elo_home_rating": 1403.2, "elo_away_rating": 1501.3, "elo_home_win_pct": 43.1, "poisson_home_win_pct": 35.6, "blended_home_win_pct": 39.4, "blended_away_win_pct": 60.6, "predicted_home_runs": 2.86, "predicted_away_runs": 3.83, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.91, "away_bullpen_factor": 0.936, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 36.1, "confidence_label": "偏低", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中日", "away": "広島", "home_starter": "", "away_starter": "", "elo_home_rating": 1476.6, "elo_away_rating": 1418.1, "elo_home_win_pct": 65.1, "poisson_home_win_pct": 70.8, "blended_home_win_pct": 68.0, "blended_away_win_pct": 32.0, "predicted_home_runs": 4.08, "predicted_away_runs": 2.63, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.882, "away_bullpen_factor": 1.256, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 44.5, "confidence_label": "中", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ソフトバンク", "away": "日本ハム", "home_starter": "", "away_starter": "", "elo_home_rating": 1630.8, "elo_away_rating": 1573.7, "elo_home_win_pct": 64.9, "poisson_home_win_pct": 59.9, "blended_home_win_pct": 62.4, "blended_away_win_pct": 37.6, "predicted_home_runs": 4.6, "predicted_away_runs": 3.86, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.204, "away_bullpen_factor": 1.003, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 39.4, "confidence_label": "偏低", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ロッテ", "away": "楽天", "home_starter": "", "away_starter": "", "elo_home_rating": 1520.2, "elo_away_rating": 1471.1, "elo_home_win_pct": 63.9, "poisson_home_win_pct": 62.5, "blended_home_win_pct": 63.2, "blended_away_win_pct": 36.8, "predicted_home_runs": 5.16, "predicted_away_runs": 4.17, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.267, "away_bullpen_factor": 1.422, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 42.4, "confidence_label": "中", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "オリックス", "away": "西武", "home_starter": "", "away_starter": "", "elo_home_rating": 1493.6, "elo_away_rating": 1550.0, "elo_home_win_pct": 49.1, "poisson_home_win_pct": 29.1, "blended_home_win_pct": 39.1, "blended_away_win_pct": 60.9, "predicted_home_runs": 3.1, "predicted_away_runs": 4.65, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.564, "away_bullpen_factor": 0.736, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.9, "confidence_label": "偏低", "date": "2026-08-19", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "巨人", "away": "DeNA", "home_starter": "", "away_starter": "", "elo_home_rating": 1484.9, "elo_away_rating": 1476.5, "elo_home_win_pct": 58.3, "poisson_home_win_pct": 49.4, "blended_home_win_pct": 53.9, "blended_away_win_pct": 46.1, "predicted_home_runs": 3.48, "predicted_away_runs": 3.52, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.974, "away_bullpen_factor": 0.874, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.6, "confidence_label": "偏低", "date": "2026-08-20", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ヤクルト", "away": "阪神", "home_starter": "", "away_starter": "", "elo_home_rating": 1403.2, "elo_away_rating": 1501.3, "elo_home_win_pct": 43.1, "poisson_home_win_pct": 35.6, "blended_home_win_pct": 39.4, "blended_away_win_pct": 60.6, "predicted_home_runs": 2.86, "predicted_away_runs": 3.83, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.91, "away_bullpen_factor": 0.936, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 36.1, "confidence_label": "偏低", "date": "2026-08-20", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "中日", "away": "広島", "home_starter": "", "away_starter": "", "elo_home_rating": 1476.6, "elo_away_rating": 1418.1, "elo_home_win_pct": 65.1, "poisson_home_win_pct": 70.8, "blended_home_win_pct": 68.0, "blended_away_win_pct": 32.0, "predicted_home_runs": 4.08, "predicted_away_runs": 2.63, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.882, "away_bullpen_factor": 1.256, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 44.5, "confidence_label": "中", "date": "2026-08-20", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ソフトバンク", "away": "日本ハム", "home_starter": "", "away_starter": "", "elo_home_rating": 1630.8, "elo_away_rating": 1573.7, "elo_home_win_pct": 64.9, "poisson_home_win_pct": 59.9, "blended_home_win_pct": 62.4, "blended_away_win_pct": 37.6, "predicted_home_runs": 4.6, "predicted_away_runs": 3.86, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.204, "away_bullpen_factor": 1.003, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 39.4, "confidence_label": "偏低", "date": "2026-08-20", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ロッテ", "away": "楽天", "home_starter": "", "away_starter": "", "elo_home_rating": 1520.2, "elo_away_rating": 1471.1, "elo_home_win_pct": 63.9, "poisson_home_win_pct": 62.5, "blended_home_win_pct": 63.2, "blended_away_win_pct": 36.8, "predicted_home_runs": 5.16, "predicted_away_runs": 4.17, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.267, "away_bullpen_factor": 1.422, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 42.4, "confidence_label": "中", "date": "2026-08-20", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "オリックス", "away": "西武", "home_starter": "", "away_starter": "", "elo_home_rating": 1493.6, "elo_away_rating": 1550.0, "elo_home_win_pct": 49.1, "poisson_home_win_pct": 29.1, "blended_home_win_pct": 39.1, "blended_away_win_pct": 60.9, "predicted_home_runs": 3.1, "predicted_away_runs": 4.65, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.564, "away_bullpen_factor": 0.736, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 28.9, "confidence_label": "偏低", "date": "2026-08-20", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "広島", "away": "巨人", "home_starter": "", "away_starter": "", "elo_home_rating": 1418.1, "elo_away_rating": 1484.9, "elo_home_win_pct": 47.6, "poisson_home_win_pct": 36.7, "blended_home_win_pct": 42.2, "blended_away_win_pct": 57.8, "predicted_home_runs": 2.97, "predicted_away_runs": 3.87, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.256, "away_bullpen_factor": 0.974, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 31.3, "confidence_label": "偏低", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "阪神", "away": "DeNA", "home_starter": "", "away_starter": "", "elo_home_rating": 1501.3, "elo_away_rating": 1476.5, "elo_home_win_pct": 60.6, "poisson_home_win_pct": 58.8, "blended_home_win_pct": 59.7, "blended_away_win_pct": 40.3, "predicted_home_runs": 3.78, "predicted_away_runs": 3.18, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.936, "away_bullpen_factor": 0.874, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 38.6, "confidence_label": "偏低", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ヤクルト", "away": "中日", "home_starter": "", "away_starter": "", "elo_home_rating": 1403.2, "elo_away_rating": 1476.6, "elo_home_win_pct": 46.6, "poisson_home_win_pct": 43.7, "blended_home_win_pct": 45.2, "blended_away_win_pct": 54.8, "predicted_home_runs": 3.03, "predicted_away_runs": 3.44, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.91, "away_bullpen_factor": 0.882, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 33.1, "confidence_label": "偏低", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "西武", "away": "楽天", "home_starter": "", "away_starter": "", "elo_home_rating": 1550.0, "elo_away_rating": 1471.1, "elo_home_win_pct": 67.7, "poisson_home_win_pct": 78.8, "blended_home_win_pct": 73.3, "blended_away_win_pct": 26.7, "predicted_home_runs": 4.92, "predicted_away_runs": 2.7, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.736, "away_bullpen_factor": 1.422, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 46.6, "confidence_label": "中", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "日本ハム", "away": "ロッテ", "home_starter": "", "away_starter": "", "elo_home_rating": 1573.7, "elo_away_rating": 1520.2, "elo_home_win_pct": 64.5, "poisson_home_win_pct": 77.0, "blended_home_win_pct": 70.7, "blended_away_win_pct": 29.3, "predicted_home_runs": 5.44, "predicted_away_runs": 3.25, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.003, "away_bullpen_factor": 1.267, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 43.2, "confidence_label": "中", "date": "2026-08-21", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "広島", "away": "巨人", "home_starter": "", "away_starter": "", "elo_home_rating": 1418.1, "elo_away_rating": 1484.9, "elo_home_win_pct": 47.6, "poisson_home_win_pct": 36.7, "blended_home_win_pct": 42.2, "blended_away_win_pct": 57.8, "predicted_home_runs": 2.97, "predicted_away_runs": 3.87, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.256, "away_bullpen_factor": 0.974, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 31.3, "confidence_label": "偏低", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "阪神", "away": "DeNA", "home_starter": "", "away_starter": "", "elo_home_rating": 1501.3, "elo_away_rating": 1476.5, "elo_home_win_pct": 60.6, "poisson_home_win_pct": 58.8, "blended_home_win_pct": 59.7, "blended_away_win_pct": 40.3, "predicted_home_runs": 3.78, "predicted_away_runs": 3.18, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.936, "away_bullpen_factor": 0.874, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 38.6, "confidence_label": "偏低", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ヤクルト", "away": "中日", "home_starter": "", "away_starter": "", "elo_home_rating": 1403.2, "elo_away_rating": 1476.6, "elo_home_win_pct": 46.6, "poisson_home_win_pct": 43.7, "blended_home_win_pct": 45.2, "blended_away_win_pct": 54.8, "predicted_home_runs": 3.03, "predicted_away_runs": 3.44, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.91, "away_bullpen_factor": 0.882, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 33.1, "confidence_label": "偏低", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "西武", "away": "楽天", "home_starter": "", "away_starter": "", "elo_home_rating": 1550.0, "elo_away_rating": 1471.1, "elo_home_win_pct": 67.7, "poisson_home_win_pct": 78.8, "blended_home_win_pct": 73.3, "blended_away_win_pct": 26.7, "predicted_home_runs": 4.92, "predicted_away_runs": 2.7, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.736, "away_bullpen_factor": 1.422, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 46.6, "confidence_label": "中", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "日本ハム", "away": "ロッテ", "home_starter": "", "away_starter": "", "elo_home_rating": 1573.7, "elo_away_rating": 1520.2, "elo_home_win_pct": 64.5, "poisson_home_win_pct": 77.0, "blended_home_win_pct": 70.7, "blended_away_win_pct": 29.3, "predicted_home_runs": 5.44, "predicted_away_runs": 3.25, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.003, "away_bullpen_factor": 1.267, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 43.2, "confidence_label": "中", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "オリックス", "away": "ソフトバンク", "home_starter": "", "away_starter": "", "elo_home_rating": 1493.6, "elo_away_rating": 1630.8, "elo_home_win_pct": 37.7, "poisson_home_win_pct": 19.7, "blended_home_win_pct": 28.7, "blended_away_win_pct": 71.3, "predicted_home_runs": 3.67, "predicted_away_runs": 6.39, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.564, "away_bullpen_factor": 1.204, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 40.5, "confidence_label": "中", "date": "2026-08-22", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "広島", "away": "巨人", "home_starter": "", "away_starter": "", "elo_home_rating": 1418.1, "elo_away_rating": 1484.9, "elo_home_win_pct": 47.6, "poisson_home_win_pct": 36.7, "blended_home_win_pct": 42.2, "blended_away_win_pct": 57.8, "predicted_home_runs": 2.97, "predicted_away_runs": 3.87, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.256, "away_bullpen_factor": 0.974, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 31.3, "confidence_label": "偏低", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "阪神", "away": "DeNA", "home_starter": "", "away_starter": "", "elo_home_rating": 1501.3, "elo_away_rating": 1476.5, "elo_home_win_pct": 60.6, "poisson_home_win_pct": 58.8, "blended_home_win_pct": 59.7, "blended_away_win_pct": 40.3, "predicted_home_runs": 3.78, "predicted_away_runs": 3.18, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.936, "away_bullpen_factor": 0.874, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 38.6, "confidence_label": "偏低", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "ヤクルト", "away": "中日", "home_starter": "", "away_starter": "", "elo_home_rating": 1403.2, "elo_away_rating": 1476.6, "elo_home_win_pct": 46.6, "poisson_home_win_pct": 43.7, "blended_home_win_pct": 45.2, "blended_away_win_pct": 54.8, "predicted_home_runs": 3.03, "predicted_away_runs": 3.44, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.91, "away_bullpen_factor": 0.882, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 33.1, "confidence_label": "偏低", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "西武", "away": "楽天", "home_starter": "", "away_starter": "", "elo_home_rating": 1550.0, "elo_away_rating": 1471.1, "elo_home_win_pct": 67.7, "poisson_home_win_pct": 78.8, "blended_home_win_pct": 73.3, "blended_away_win_pct": 26.7, "predicted_home_runs": 4.92, "predicted_away_runs": 2.7, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.736, "away_bullpen_factor": 1.422, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 46.6, "confidence_label": "中", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}, {"home": "日本ハム", "away": "ロッテ", "home_starter": "", "away_starter": "", "elo_home_rating": 1573.7, "elo_away_rating": 1520.2, "elo_home_win_pct": 64.5, "poisson_home_win_pct": 77.0, "blended_home_win_pct": 70.7, "blended_away_win_pct": 29.3, "predicted_home_runs": 5.44, "predicted_away_runs": 3.25, "context": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 1.003, "away_bullpen_factor": 1.267, "home_hand_factor": null, "away_hand_factor": null}, "confidence_score": 43.2, "confidence_label": "中", "date": "2026-08-23", "home_pitcher_stats": null, "away_pitcher_stats": null, "market_odds": null}], "team_list": ["ソフトバンク", "日本ハム", "西武", "ロッテ", "阪神", "オリックス", "巨人", "中日", "DeNA", "楽天", "広島", "ヤクルト"], "elo_ratings": {"中日": 1476.6, "DeNA": 1476.5, "ヤクルト": 1403.2, "阪神": 1501.3, "巨人": 1484.9, "広島": 1418.1, "オリックス": 1493.6, "日本ハム": 1573.7, "楽天": 1471.1, "ロッテ": 1520.2, "西武": 1550.0, "ソフトバンク": 1630.8}, "poisson": {"offense": {"中日": 0.921, "DeNA": 1.093, "ヤクルト": 0.908, "阪神": 1.025, "巨人": 0.944, "広島": 0.852, "オリックス": 0.987, "日本ハム": 1.121, "楽天": 0.927, "ロッテ": 0.98, "西武": 0.935, "ソフトバンク": 1.284}, "defense": {"中日": 0.93, "DeNA": 1.033, "ヤクルト": 1.108, "阪神": 0.853, "巨人": 0.925, "広島": 1.029, "オリックス": 1.099, "日本ハム": 0.938, "楽天": 1.14, "ロッテ": 1.123, "西武": 0.951, "ソフトバンク": 0.885}, "league_avg_runs": 3.53}, "last_game_date": "2026-08-15", "total_games": 6619, "has_player_data": true}};
+
+const ELO_HOME_ADV = 50.0;
+const POISSON_HOME_ADV = 1.08;
+const MAX_RUNS = 15;
+
+function eloWinProb(rh, rv) {
+  return 1 / (1 + Math.pow(10, -(((rh + ELO_HOME_ADV) - rv) / 400)));
+}
+function factorial(n) { let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; }
+function poissonPmf(k, lam) { return Math.exp(-lam) * Math.pow(lam, k) / factorial(k); }
+function poissonWinProb(lamHome, lamAway) {
+  let home = 0, tie = 0, away = 0;
+  const hp = [], ap = [];
+  for (let i = 0; i <= MAX_RUNS; i++) { hp.push(poissonPmf(i, lamHome)); ap.push(poissonPmf(i, lamAway)); }
+  for (let i = 0; i <= MAX_RUNS; i++) {
+    for (let j = 0; j <= MAX_RUNS; j++) {
+      const p = hp[i] * ap[j];
+      if (i > j) home += p; else if (i === j) tie += p; else away += p;
+    }
+  }
+  const total = home + tie + away;
+  home /= total; tie /= total; away /= total;
+  return { home: home + tie * 0.5, away: away + tie * 0.5 };
+}
+// Sum of two independent Poisson variables is itself Poisson(lamHome + lamAway),
+// so the total-runs over/under distribution is exact, not simulated.
+function overUnderProb(lamHome, lamAway, line) {
+  const totalLam = lamHome + lamAway;
+  const underCount = Math.floor(line);
+  let cdf = 0;
+  for (let i = 0; i <= underCount; i++) cdf += poissonPmf(i, totalLam);
+  cdf = Math.min(cdf, 1);
+  return { under: cdf, over: 1 - cdf };
+}
+// EV per 1-unit stake at decimal odds: model_prob * odds - 1 (fraction of stake returned as profit).
+function evForBet(modelProb, decimalOdds) {
+  const impliedProb = 1 / decimalOdds;
+  const ev = modelProb * decimalOdds - 1;
+  return { impliedProb, ev, roiPct: ev * 100 };
+}
+function predictGame(home, away, elo, poisson) {
+  const rh = elo[home] ?? 1500, rv = elo[away] ?? 1500;
+  const eloP = eloWinProb(rh, rv);
+  const offH = poisson.offense[home] ?? 1, defH = poisson.defense[home] ?? 1;
+  const offV = poisson.offense[away] ?? 1, defV = poisson.defense[away] ?? 1;
+  const lamHome = poisson.league_avg_runs * offH * defV * POISSON_HOME_ADV;
+  const lamAway = poisson.league_avg_runs * offV * defH;
+  const poi = poissonWinProb(lamHome, lamAway);
+  const blendedHome = (eloP + poi.home) / 2;
+  return {
+    homeWinPct: blendedHome * 100,
+    awayWinPct: (1 - blendedHome) * 100,
+    lamHome, lamAway,
+  };
+}
+
+function fmtPct(x) { return x.toFixed(1) + '%'; }
+
+function renderLeague(containerId, league) {
+  const el = document.getElementById(containerId);
+  const maxElo = Math.max(...league.rankings.map(r => r.elo));
+  const minElo = Math.min(...league.rankings.map(r => r.elo));
+  const span = Math.max(maxElo - minElo, 1);
+
+  const rankingsRows = league.rankings.map(r => `
+    <tr>
+      <td class="num">${r.rank}</td>
+      <td>${r.team}</td>
+      <td class="num">${r.elo}</td>
+      <td>
+        <div class="elo-bar-cell">
+          <div class="elo-bar-track"><div class="elo-bar-fill" style="width:${((r.elo - minElo) / span * 100).toFixed(0)}%"></div></div>
+        </div>
+      </td>
+      <td class="num">${r.offense}</td>
+      <td class="num">${r.defense}</td>
+      <td class="num">${r.team_ops ?? '—'}</td>
+      <td class="num">${r.bullpen_era ?? '—'}</td>
+      <td class="num">${r.recent_form}</td>
+    </tr>`).join('');
+
+  function pitcherBlock(sideClass, teamLabel, starter, stats) {
+    if (!starter) {
+      return `<div class="side"><div class="p-name">${teamLabel}</div><div class="p-unknown">先發未公布</div></div>`;
+    }
+    if (!stats) {
+      return `<div class="side"><div class="p-name">${starter}</div><div class="p-unknown">數據暫缺</div></div>`;
+    }
+    return `<div class="side">
+      <div class="p-name">${stats.name} <span class="p-hand">${stats.hand || ''}</span></div>
+      <div class="p-stats">ERA ${stats.era} · WHIP ${stats.whip}<br>K/9 ${stats.k9} · BB/9 ${stats.bb9}${stats.last5_era != null ? `<br>近5場先發 ERA ${stats.last5_era}` : ''}</div>
+    </div>`;
+  }
+
+  const CONF_CLASS = { '高信心': 'conf-1', '中高': 'conf-2', '中': 'conf-3', '偏低': 'conf-4', '不建議': 'conf-5' };
+
+  const cards = league.predictions.map((p, idx) => {
+    const homePct = p.blended_home_win_pct, awayPct = p.blended_away_win_pct;
+    const ctx = p.context || {};
+    const badges = [];
+    if (ctx.home_bullpen_factor != null && ctx.home_bullpen_factor > 1.05) badges.push(`<span class="badge fatigue-warn">${p.home} 牛棚偏疲勞</span>`);
+    if (ctx.away_bullpen_factor != null && ctx.away_bullpen_factor > 1.05) badges.push(`<span class="badge fatigue-warn">${p.away} 牛棚偏疲勞</span>`);
+    if (ctx.home_hand_factor != null) badges.push(`<span class="badge">${p.home} 對戰打線調整 ${ctx.home_hand_factor}x</span>`);
+    if (ctx.away_hand_factor != null) badges.push(`<span class="badge">${p.away} 對戰打線調整 ${ctx.away_hand_factor}x</span>`);
+    const confClass = CONF_CLASS[p.confidence_label] || 'conf-3';
+    return `
+    <div class="game-card" data-idx="${idx}">
+      <div class="card-head">
+        <div class="date">${p.date}</div>
+        <span class="confidence-badge ${confClass}" title="信心分數 ${p.confidence_score}/100（綜合勝率差距、Elo與Poisson一致性、資料完整度）">${p.confidence_label}</span>
+      </div>
+      <div class="matchup-row"><span class="team away-tag">${p.away}</span><span class="pct">${fmtPct(awayPct)}</span></div>
+      <div class="matchup-row"><span class="team home-tag">${p.home}</span><span class="pct">${fmtPct(homePct)}</span></div>
+      <div class="split-bar"><div class="home" style="width:${homePct.toFixed(1)}%"></div><div class="away" style="width:${awayPct.toFixed(1)}%"></div></div>
+      <div class="score-line">預測比分（主/客）：${p.predicted_home_runs} - ${p.predicted_away_runs}</div>
+      <div class="pitcher-block">
+        ${pitcherBlock('away', p.away, p.away_starter, p.away_pitcher_stats)}
+        ${pitcherBlock('home', p.home, p.home_starter, p.home_pitcher_stats)}
+      </div>
+      ${badges.length ? `<div class="badge-row">${badges.join('')}</div>` : ''}
+      <div class="ev-block">
+        <div class="ev-title">💰 EV 賠率價值分析${p.market_odds ? ' <span class="badge">已帶入玩運彩即時賠率</span>' : ''}</div>
+        <div class="ev-body">
+          <div class="ev-row">
+            <div class="ev-field"><label>${p.home} 主勝賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-home-odds" placeholder="例 1.85" value="${p.market_odds?.home_moneyline ?? ''}"></div>
+            <div class="ev-field"><label>${p.away} 客勝賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-away-odds" placeholder="例 1.95" value="${p.market_odds?.away_moneyline ?? ''}"></div>
+          </div>
+          <div class="ev-out ev-out-home"></div>
+          <div class="ev-out ev-out-away"></div>
+          <div class="ev-sub">大小分（總分）</div>
+          <div class="ev-row">
+            <div class="ev-field"><label>盤口</label><input type="number" step="0.5" class="ev-in ev-line" placeholder="例 8.5" value="${p.market_odds?.ou_line ?? ''}"></div>
+            <div class="ev-field"><label>大分賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-over-odds" placeholder="例 1.90" value="${p.market_odds?.over_odds ?? ''}"></div>
+            <div class="ev-field"><label>小分賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-under-odds" placeholder="例 1.90" value="${p.market_odds?.under_odds ?? ''}"></div>
+          </div>
+          <div class="ev-out ev-out-over"></div>
+          <div class="ev-out ev-out-under"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const teamOptions = league.team_list.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  el.innerHTML = `
+    <section>
+      <h2>戰力排行榜</h2>
+      <p class="section-sub">依 Elo 評分排序；攻擊力/防守力為近期得分加權指數（1.00 = 聯盟平均，越高越強／防守力越低越好）；打線OPS為全隊加總計算，牛棚ERA${league.name.startsWith('NPB') ? '為近25天登板' : '為本季所有後援登板'}</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th class="num">#</th><th>球隊</th><th class="num">Elo</th><th></th><th class="num">攻擊力</th><th class="num">防守力</th><th class="num">打線OPS</th><th class="num">牛棚ERA</th><th class="num">近10戰</th></tr></thead>
+          <tbody>${rankingsRows}</tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>近期賽事預測</h2>
+      <p class="section-sub">共 ${league.predictions.length} 場・截至 ${league.last_game_date} 的 ${league.total_games} 場歷史賽事</p>
+      <div class="legend"><span class="l-home">主場</span><span class="l-away">客場</span></div>
+      <div class="card-grid">${cards || '<p class="section-sub">目前無已排定且尚未開打的賽事資料。</p>'}</div>
+    </section>
+
+    <section>
+      <h2>對戰勝率試算</h2>
+      <p class="section-sub">選擇任意兩隊，即時試算勝率與預測比分</p>
+      <div class="calc-box">
+        <div class="calc-row">
+          <div class="field">
+            <label>客隊</label>
+            <select class="calc-away">${teamOptions}</select>
+          </div>
+          <div class="field">
+            <label>主隊</label>
+            <select class="calc-home">${teamOptions}</select>
+          </div>
+        </div>
+        <div class="calc-result">
+          <div class="matchup-row"><span class="team away-tag calc-away-name"></span><span class="pct calc-away-pct"></span></div>
+          <div class="matchup-row"><span class="team home-tag calc-home-name"></span><span class="pct calc-home-pct"></span></div>
+          <div class="split-bar calc-split"><div class="home"></div><div class="away"></div></div>
+          <div class="score-line calc-score"></div>
+        </div>
+      </div>
+    </section>
+  `;
+
+  el.querySelectorAll('.game-card').forEach(card => {
+    const p = league.predictions[Number(card.dataset.idx)];
+    const title = card.querySelector('.ev-title');
+    const body = card.querySelector('.ev-body');
+    title.classList.add('collapsed');
+    title.addEventListener('click', () => {
+      body.classList.toggle('open');
+      title.classList.toggle('collapsed');
+    });
+
+    function fmtOdds(x) { return isFinite(x) ? x.toFixed(1) + '%' : '—'; }
+    function verdictHtml(ev) {
+      const pct = (ev * 100).toFixed(1);
+      return ev > 0
+        ? `<span class="verdict positive">✓ 有投注價值 (EV +${pct}%)</span>`
+        : `<span class="verdict negative">✗ 不建議投注 (EV ${pct}%)</span>`;
+    }
+
+    function recompute() {
+      const homeOdds = parseFloat(card.querySelector('.ev-home-odds').value);
+      const awayOdds = parseFloat(card.querySelector('.ev-away-odds').value);
+      const line = parseFloat(card.querySelector('.ev-line').value);
+      const overOdds = parseFloat(card.querySelector('.ev-over-odds').value);
+      const underOdds = parseFloat(card.querySelector('.ev-under-odds').value);
+      const modelHome = p.blended_home_win_pct / 100, modelAway = p.blended_away_win_pct / 100;
+
+      const homeOut = card.querySelector('.ev-out-home');
+      if (homeOdds > 1) {
+        const r = evForBet(modelHome, homeOdds);
+        homeOut.innerHTML = `<div class="ev-result-row"><span>${p.home} 隱含機率 ${fmtOdds(r.impliedProb*100)} ・模型機率 ${fmtOdds(modelHome*100)}</span>${verdictHtml(r.ev)}</div>`;
+      } else { homeOut.innerHTML = ''; }
+
+      const awayOut = card.querySelector('.ev-out-away');
+      if (awayOdds > 1) {
+        const r = evForBet(modelAway, awayOdds);
+        awayOut.innerHTML = `<div class="ev-result-row"><span>${p.away} 隱含機率 ${fmtOdds(r.impliedProb*100)} ・模型機率 ${fmtOdds(modelAway*100)}</span>${verdictHtml(r.ev)}</div>`;
+      } else { awayOut.innerHTML = ''; }
+
+      const overOut = card.querySelector('.ev-out-over');
+      const underOut = card.querySelector('.ev-out-under');
+      if (!isNaN(line)) {
+        const ou = overUnderProb(p.predicted_home_runs, p.predicted_away_runs, line);
+        if (overOdds > 1) {
+          const r = evForBet(ou.over, overOdds);
+          overOut.innerHTML = `<div class="ev-result-row"><span>大分 隱含 ${fmtOdds(r.impliedProb*100)} ・模型 ${fmtOdds(ou.over*100)}</span>${verdictHtml(r.ev)}</div>`;
+        } else { overOut.innerHTML = ''; }
+        if (underOdds > 1) {
+          const r = evForBet(ou.under, underOdds);
+          underOut.innerHTML = `<div class="ev-result-row"><span>小分 隱含 ${fmtOdds(r.impliedProb*100)} ・模型 ${fmtOdds(ou.under*100)}</span>${verdictHtml(r.ev)}</div>`;
+        } else { underOut.innerHTML = ''; }
+      } else { overOut.innerHTML = ''; underOut.innerHTML = ''; }
+    }
+    card.querySelectorAll('.ev-in').forEach(inp => inp.addEventListener('input', recompute));
+
+    if (p.market_odds) {
+      body.classList.add('open');
+      title.classList.remove('collapsed');
+      recompute();
+    }
+  });
+
+  const homeSel = el.querySelector('.calc-home');
+  const awaySel = el.querySelector('.calc-away');
+  if (league.team_list.length > 1) {
+    homeSel.selectedIndex = 0;
+    awaySel.selectedIndex = 1;
+  }
+
+  function updateCalc() {
+    const home = homeSel.value, away = awaySel.value;
+    const result = el.querySelector('.calc-result');
+    if (home === away) { result.style.display = 'none'; return; }
+    const pred = predictGame(home, away, league.elo_ratings, league.poisson);
+    result.style.display = 'block';
+    el.querySelector('.calc-away-name').textContent = away;
+    el.querySelector('.calc-home-name').textContent = home;
+    el.querySelector('.calc-away-pct').textContent = fmtPct(pred.awayWinPct);
+    el.querySelector('.calc-home-pct').textContent = fmtPct(pred.homeWinPct);
+    el.querySelector('.calc-split .home').style.width = pred.homeWinPct.toFixed(1) + '%';
+    el.querySelector('.calc-split .away').style.width = pred.awayWinPct.toFixed(1) + '%';
+    el.querySelector('.calc-score').textContent = `預測比分（主/客）：${pred.lamHome.toFixed(2)} - ${pred.lamAway.toFixed(2)}`;
+  }
+  homeSel.addEventListener('change', updateCalc);
+  awaySel.addEventListener('change', updateCalc);
+  updateCalc();
+}
+
+renderLeague('league-cpbl', DATA.cpbl);
+renderLeague('league-npb', DATA.npb);
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.league').forEach(l => l.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('league-' + btn.dataset.league).classList.add('active');
+  });
+});
+
+const updateBtn = document.getElementById('updateBtn');
+const updateHint = document.getElementById('updateHint');
+updateBtn.addEventListener('click', async () => {
+  const cmd = 'update_data.bat';
+  try {
+    await navigator.clipboard.writeText(cmd);
+    updateHint.textContent = '已複製「update_data.bat」，請在專案資料夾雙擊執行，或於終端機貼上執行';
+  } catch (e) {
+    updateHint.innerHTML = '請直接雙擊專案資料夾中的 <span class="update-path">update_data.bat</span> 執行更新（瀏覽器未授權複製剪貼簿）';
+  }
+});
+</script>
+</body>
+</html>

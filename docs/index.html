@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPBL / NPB 預測系統 Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-home:    #2a78d6;
+    --series-away:    #eb6834;
+    --good:           #0ca30c;
+    --warn:           #eda100;
+    --bad:            #e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7;
+      --text-muted: #898781; --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+      --series-home: #3987e5; --series-away: #d95926; --good: #0ca30c; --warn: #c98500; --bad: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7;
+    --text-muted: #898781; --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --series-home: #3987e5; --series-away: #d95926; --good: #0ca30c; --warn: #c98500; --bad: #e66767;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 56px; }
+  header.top h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  header.top p { color: var(--text-secondary); margin: 0; font-size: 0.82rem; }
+  .prod-badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(42,120,214,0.14); color: var(--series-home); margin-top: 6px; }
+
+  .freshness-row { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.7rem; color: var(--text-muted); margin: 10px 0 0; }
+  .freshness-row .stale { color: var(--warn); }
+
+  .tabs { display: flex; gap: 8px; margin: 18px 0 14px; border-bottom: 1px solid var(--gridline); }
+  .tab-btn { appearance: none; border: none; background: none; cursor: pointer; padding: 9px 4px; font-size: 0.95rem; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid transparent; margin-right: 18px; }
+  .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--series-home); }
+  .league { display: none; }
+  .league.active { display: block; }
+
+  section { margin-bottom: 26px; }
+  h2 { font-size: 0.98rem; margin: 0 0 4px; }
+  .section-sub { color: var(--text-muted); font-size: 0.78rem; margin: 0 0 10px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .stat-tile .label { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-tile .value { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-tile .sub { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .game-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.84rem; }
+  .game-card .matchup { font-weight: 600; margin-bottom: 4px; }
+  .game-card .pct { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .game-card .result { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--gridline); font-size: 0.78rem; }
+  .badge { display: inline-block; font-size: 0.66rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; }
+  .badge.correct { background: rgba(12,163,12,0.14); color: var(--good); }
+  .badge.wrong { background: rgba(227,73,72,0.14); color: var(--bad); }
+  .badge.pending { background: var(--gridline); color: var(--text-muted); }
+
+  .table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+  table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 0.82rem; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.production td:first-child { font-weight: 700; }
+
+  footer { color: var(--text-muted); font-size: 0.74rem; margin-top: 32px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>📊 CPBL / NPB 預測系統 Dashboard</h1>
+    <p id="generatedAt"></p>
+    <span class="prod-badge" id="prodBadge"></span>
+  </header>
+
+  <div class="freshness-row" id="freshnessRow"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-league="cpbl">CPBL</button>
+    <button class="tab-btn" data-league="npb">NPB</button>
+  </div>
+
+  <div id="league-cpbl" class="league active"></div>
+  <div id="league-npb" class="league"></div>
+
+  <section>
+    <h2>模型版本</h2>
+    <p class="section-sub">每個版本從訓練那一刻起永久保留，即使被拒絕升級也留著方便比較</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>版本</th><th>狀態</th><th>訓練時間</th><th class="num">資料筆數</th><th class="num">Log Loss</th><th class="num">Brier</th><th class="num">Accuracy</th><th class="num">AUC</th></tr></thead>
+        <tbody id="modelRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>訓練狀態</h2>
+    <p id="trainingStatus" class="section-sub"></p>
+  </section>
+
+  <footer>
+    <p>此 Dashboard 由雲端排程自動產生（GitHub Actions），電腦不需開機。EV/ROI 僅供參考，不構成投注建議。近期準確率為「模型看好的一方是否真的獲勝」的比例，非賠率相關指標。</p>
+  </footer>
+</div>
+
+<script>
+const DATA = {"generated_at": "2026-08-16T02:27:23.934088Z", "leagues": {"cpbl": {"name": "CPBL 中華職棒", "today_games": [{"game_id": "cpbl:2026-A-268", "league": "cpbl", "date": "2026-08-16", "home": "味全龍", "away": "樂天桃猿", "home_starter": "伍鐸", "away_starter": "林子崴", "scheduled_first_pitch_utc": "2026-08-16T07:05:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 49.3, "away_win_pct": 50.7, "predicted_home_runs": 4.3, "predicted_away_runs": 2.8, "predicted_total_runs": 7.1, "confidence_score": 1.4, "confidence_label": "不建議", "market_odds": {"home_moneyline": null, "away_moneyline": null, "ou_line": null, "over_odds": null, "under_odds": null}, "ev": {}, "context_notes": {"home_pitcher_factor": 1.175, "away_pitcher_factor": 0.872, "home_bullpen_factor": 0.907, "away_bullpen_factor": 0.901, "home_hand_factor": 1.167, "away_hand_factor": 0.898}, "feature_vector": {"elo_p_home": 0.667882869082606, "poisson_p_home": 0.7108989375670708, "elo_rating_diff": 71.36361065463075, "lam_home": 4.298049642757402, "lam_away": 2.7976365934378262, "home_pitcher_factor": 1.175, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 0.872, "away_pitcher_factor_known": 1.0, "home_bullpen_factor": 0.907, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 0.901, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.167, "home_hand_factor_known": 1.0, "away_hand_factor": 0.898, "away_hand_factor_known": 1.0}, "result": null}, {"game_id": "cpbl:2026-A-269", "league": "cpbl", "date": "2026-08-16", "home": "統一7-ELEVEn獅", "away": "富邦悍將", "home_starter": "張宥謙", "away_starter": "江國豪", "scheduled_first_pitch_utc": "2026-08-16T08:05:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 51.7, "away_win_pct": 48.3, "predicted_home_runs": 5.04, "predicted_away_runs": 2.9, "predicted_total_runs": 7.94, "confidence_score": 3.5, "confidence_label": "不建議", "market_odds": {"home_moneyline": null, "away_moneyline": null, "ou_line": null, "over_odds": null, "under_odds": null}, "ev": {}, "context_notes": {"home_pitcher_factor": null, "away_pitcher_factor": null, "home_bullpen_factor": 0.778, "away_bullpen_factor": 1.272, "home_hand_factor": null, "away_hand_factor": null}, "feature_vector": {"elo_p_home": 0.5794148055114909, "poisson_p_home": 0.7737203417592241, "elo_rating_diff": 5.654243127619111, "lam_home": 5.036679286157786, "lam_away": 2.9039221800703414, "home_pitcher_factor": 1.0, "home_pitcher_factor_known": 0.0, "away_pitcher_factor": 1.0, "away_pitcher_factor_known": 0.0, "home_bullpen_factor": 0.778, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 1.272, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.0, "home_hand_factor_known": 0.0, "away_hand_factor": 1.0, "away_hand_factor_known": 0.0}, "result": null}, {"game_id": "cpbl:2026-A-270", "league": "cpbl", "date": "2026-08-16", "home": "中信兄弟", "away": "台鋼雄鷹", "home_starter": "羅戈", "away_starter": "陳正毅", "scheduled_first_pitch_utc": "2026-08-16T09:05:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 49.7, "away_win_pct": 50.3, "predicted_home_runs": 4.97, "predicted_away_runs": 4.09, "predicted_total_runs": 9.06, "confidence_score": 0.6, "confidence_label": "不建議", "market_odds": {"home_moneyline": null, "away_moneyline": null, "ou_line": null, "over_odds": null, "under_odds": null}, "ev": {}, "context_notes": {"home_pitcher_factor": 0.861, "away_pitcher_factor": 1.099, "home_bullpen_factor": 1.019, "away_bullpen_factor": 1.228, "home_hand_factor": 0.925, "away_hand_factor": 0.908}, "feature_vector": {"elo_p_home": 0.5996877917569297, "poisson_p_home": 0.6141907529982785, "elo_rating_diff": 20.210549122152543, "lam_home": 4.97216406676665, "lam_away": 4.086882658388561, "home_pitcher_factor": 0.861, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 1.099, "away_pitcher_factor_known": 1.0, "home_bullpen_factor": 1.019, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 1.228, "away_bullpen_factor_known": 1.0, "home_hand_factor": 0.925, "home_hand_factor_known": 1.0, "away_hand_factor": 0.908, "away_hand_factor_known": 1.0}, "result": null}], "recent_resolved": [], "accuracy": null, "roi": {"n_games": 0, "n_bets": 0, "roi_pct": null}, "pending_count": 3}, "npb": {"name": "NPB 日本職棒", "today_games": [{"game_id": "npb:2026-08-16:DeNA:ヤクルト", "league": "npb", "date": "2026-08-16", "home": "DeNA", "away": "ヤクルト", "home_starter": "片山", "away_starter": "松本健", "scheduled_first_pitch_utc": "2026-08-16T09:00:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 48.8, "away_win_pct": 51.2, "predicted_home_runs": 4.41, "predicted_away_runs": 3.28, "predicted_total_runs": 7.69, "confidence_score": 2.5, "confidence_label": "不建議", "market_odds": null, "ev": null, "context_notes": {"home_pitcher_factor": 1.065, "away_pitcher_factor": null, "home_bullpen_factor": 0.874, "away_bullpen_factor": 0.91, "home_hand_factor": null, "away_hand_factor": null}, "feature_vector": {"elo_p_home": 0.6702865989318125, "poisson_p_home": 0.6565371616093217, "elo_rating_diff": 73.2495749546988, "lam_home": 4.410052551102944, "lam_away": 3.2765900201987064, "home_pitcher_factor": 1.065, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 1.0, "away_pitcher_factor_known": 0.0, "home_bullpen_factor": 0.874, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 0.91, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.0, "home_hand_factor_known": 0.0, "away_hand_factor": 1.0, "away_hand_factor_known": 0.0}, "result": null}, {"game_id": "npb:2026-08-16:巨人:中日", "league": "npb", "date": "2026-08-16", "home": "巨人", "away": "中日", "home_starter": "小笠原", "away_starter": "柳", "scheduled_first_pitch_utc": "2026-08-16T04:30:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 42.6, "away_win_pct": 57.4, "predicted_home_runs": 3.18, "predicted_away_runs": 2.88, "predicted_total_runs": 6.06, "confidence_score": 14.7, "confidence_label": "不建議", "market_odds": null, "ev": null, "context_notes": {"home_pitcher_factor": 0.868, "away_pitcher_factor": 0.913, "home_bullpen_factor": 0.974, "away_bullpen_factor": 0.882, "home_hand_factor": null, "away_hand_factor": null}, "feature_vector": {"elo_p_home": 0.58315976147206, "poisson_p_home": 0.5473263101461089, "elo_rating_diff": 8.327165563345261, "lam_home": 3.180050815998051, "lam_away": 2.8810056310976484, "home_pitcher_factor": 0.868, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 0.913, "away_pitcher_factor_known": 1.0, "home_bullpen_factor": 0.974, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 0.882, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.0, "home_hand_factor_known": 0.0, "away_hand_factor": 1.0, "away_hand_factor_known": 0.0}, "result": null}, {"game_id": "npb:2026-08-16:阪神:広島", "league": "npb", "date": "2026-08-16", "home": "阪神", "away": "広島", "home_starter": "伊原", "away_starter": "森", "scheduled_first_pitch_utc": "2026-08-16T09:00:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 49.4, "away_win_pct": 50.6, "predicted_home_runs": 4.19, "predicted_away_runs": 2.57, "predicted_total_runs": 6.77, "confidence_score": 1.3, "confidence_label": "不建議", "market_odds": null, "ev": null, "context_notes": {"home_pitcher_factor": 1.065, "away_pitcher_factor": 0.945, "home_bullpen_factor": 0.936, "away_bullpen_factor": 1.256, "home_hand_factor": null, "away_hand_factor": null}, "feature_vector": {"elo_p_home": 0.6828155088150205, "poisson_p_home": 0.7304202289901943, "elo_rating_diff": 83.19657298986817, "lam_home": 4.192298981209204, "lam_away": 2.5749169121294537, "home_pitcher_factor": 1.065, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 0.945, "away_pitcher_factor_known": 1.0, "home_bullpen_factor": 0.936, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 1.256, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.0, "home_hand_factor_known": 0.0, "away_hand_factor": 1.0, "away_hand_factor_known": 0.0}, "result": null}, {"game_id": "npb:2026-08-16:ロッテ:西武", "league": "npb", "date": "2026-08-16", "home": "ロッテ", "away": "西武", "home_starter": "毛利", "away_starter": "武内", "scheduled_first_pitch_utc": "2026-08-16T08:00:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 39.8, "away_win_pct": 60.2, "predicted_home_runs": 3.22, "predicted_away_runs": 4.07, "predicted_total_runs": 7.29, "confidence_score": 20.4, "confidence_label": "不建議", "market_odds": null, "ev": null, "context_notes": {"home_pitcher_factor": 1.133, "away_pitcher_factor": 0.878, "home_bullpen_factor": 1.267, "away_bullpen_factor": 0.736, "home_hand_factor": null, "away_hand_factor": null}, "feature_vector": {"elo_p_home": 0.5289846992374256, "poisson_p_home": 0.37902684396796343, "elo_rating_diff": -29.83676196426677, "lam_home": 3.2203940521406826, "lam_away": 4.065457983844813, "home_pitcher_factor": 1.133, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 0.878, "away_pitcher_factor_known": 1.0, "home_bullpen_factor": 1.267, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 0.736, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.0, "home_hand_factor_known": 0.0, "away_hand_factor": 1.0, "away_hand_factor_known": 0.0}, "result": null}, {"game_id": "npb:2026-08-16:日本ハム:オリックス", "league": "npb", "date": "2026-08-16", "home": "日本ハム", "away": "オリックス", "home_starter": "有原", "away_starter": "曽谷", "scheduled_first_pitch_utc": "2026-08-16T04:00:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 52.2, "away_win_pct": 47.8, "predicted_home_runs": 5.22, "predicted_away_runs": 3.26, "predicted_total_runs": 8.48, "confidence_score": 4.4, "confidence_label": "不建議", "market_odds": null, "ev": null, "context_notes": {"home_pitcher_factor": 0.985, "away_pitcher_factor": 0.948, "home_bullpen_factor": 1.003, "away_bullpen_factor": 1.564, "home_hand_factor": null, "away_hand_factor": null}, "feature_vector": {"elo_p_home": 0.678935640072838, "poisson_p_home": 0.7486622724768648, "elo_rating_diff": 80.09460327924398, "lam_home": 5.224887499374428, "lam_away": 3.2556835458953723, "home_pitcher_factor": 0.985, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 0.948, "away_pitcher_factor_known": 1.0, "home_bullpen_factor": 1.003, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 1.564, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.0, "home_hand_factor_known": 0.0, "away_hand_factor": 1.0, "away_hand_factor_known": 0.0}, "result": null}, {"game_id": "npb:2026-08-16:楽天:ソフトバンク", "league": "npb", "date": "2026-08-16", "home": "楽天", "away": "ソフトバンク", "home_starter": "古謝", "away_starter": "松本晴", "scheduled_first_pitch_utc": "2026-08-16T04:00:00Z", "first_pitch_source": "scraped", "locked_at_utc": "2026-08-16T02:26:13.114937Z", "model_version": "v0001_logreg_2026wk33", "home_win_pct": 39.8, "away_win_pct": 60.2, "predicted_home_runs": 3.45, "predicted_away_runs": 5.65, "predicted_total_runs": 9.1, "confidence_score": 20.4, "confidence_label": "不建議", "market_odds": null, "ev": null, "context_notes": {"home_pitcher_factor": 0.993, "away_pitcher_factor": null, "home_bullpen_factor": 1.422, "away_bullpen_factor": 1.204, "home_hand_factor": null, "away_hand_factor": null}, "feature_vector": {"elo_p_home": 0.34726643954418945, "poisson_p_home": 0.23454861349397207, "elo_rating_diff": -159.62925131656448, "lam_home": 3.4496899594353683, "lam_away": 5.6494300917548665, "home_pitcher_factor": 0.993, "home_pitcher_factor_known": 1.0, "away_pitcher_factor": 1.0, "away_pitcher_factor_known": 0.0, "home_bullpen_factor": 1.422, "home_bullpen_factor_known": 1.0, "away_bullpen_factor": 1.204, "away_bullpen_factor_known": 1.0, "home_hand_factor": 1.0, "home_hand_factor_known": 0.0, "away_hand_factor": 1.0, "away_hand_factor_known": 0.0}, "result": null}], "recent_resolved": [], "accuracy": null, "roi": {"n_games": 0, "n_bets": 0, "roi_pct": null}, "pending_count": 6}}, "registry": {"current_production": "v0001_logreg_2026wk33", "models": [{"version": "v0000_elo_poisson_baseline", "type": "deterministic", "artifact_path": null, "trained_at": null, "training_row_count": null, "feature_list": null, "eval_window": null, "metrics": {"log_loss": null, "brier": null, "accuracy": null, "auc": null, "calibration_bins": null, "roi": null}, "status": "archived", "promoted_at": "2026-08-16T02:08:15.260174Z", "notes": "Existing hand-tuned Elo(K=20,+50 home)+Poisson(180d half-life) blend with starter/bullpen/handedness context adjustments (scripts/model.py + context.py). Registered as the permanent baseline every challenger must beat.", "rejected_reason": null}, {"version": "v0001_logreg_2026wk33", "type": "sklearn_logreg", "artifact_path": "models/v0001_logreg_2026wk33/model.joblib", "trained_at": "2026-08-16T02:25:17.349009Z", "training_row_count": 7132, "feature_list": ["elo_p_home", "poisson_p_home", "elo_rating_diff", "lam_home", "lam_away", "home_pitcher_factor", "home_pitcher_factor_known", "away_pitcher_factor", "away_pitcher_factor_known", "home_bullpen_factor", "home_bullpen_factor_known", "away_bullpen_factor", "away_bullpen_factor_known", "home_hand_factor", "home_hand_factor_known", "away_hand_factor", "away_hand_factor_known"], "eval_window": {"type": "backfill_holdout", "start": "2025-05-21", "end": "2026-08-15", "n_games": 1783, "n_train": 7132, "n_forward_available": 0}, "metrics": {"n": 1783, "log_loss": 0.6842, "brier": 0.2456, "accuracy": 0.5586, "auc": 0.5738, "calibration_bins": [{"mean_predicted": 0.383, "fraction_positive": 0.378}, {"mean_predicted": 0.45, "fraction_positive": 0.463}, {"mean_predicted": 0.513, "fraction_positive": 0.615}]}, "status": "production", "promoted_at": "2026-08-16T02:25:43.668449Z", "rejected_reason": null}]}, "training_status": {"last_run_utc": "2026-08-16T02:25:43.708151Z", "outcome": "升級成功", "detail": "v0001_logreg_2026wk33 log_loss 0.6842 < 0.7075"}, "freshness": {"cpbl_data": "2026-08-16T02:01:50.147035Z", "npb_data": "2026-08-16T02:08:03.437095Z", "cpbl_pitchers": "2026-08-16T01:25:53.484753Z", "npb_pitchers": "2026-08-16T01:32:23.287090Z"}};
+
+function fmtPct(x) { return x == null ? '—' : x.toFixed(1) + '%'; }
+function fmtDT(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function ageHours(iso) {
+  if (!iso) return Infinity;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+}
+
+document.getElementById('generatedAt').textContent = '更新時間：' + fmtDT(DATA.generated_at);
+document.getElementById('prodBadge').textContent = '正式模型：' + DATA.registry.current_production;
+
+const freshnessLabels = { cpbl_data: 'CPBL 賽程', npb_data: 'NPB 賽程', cpbl_pitchers: 'CPBL 球員', npb_pitchers: 'NPB 球員' };
+const freshnessRow = document.getElementById('freshnessRow');
+Object.entries(DATA.freshness).forEach(([key, iso]) => {
+  const stale = ageHours(iso) > 30;
+  const span = document.createElement('span');
+  if (stale) span.className = 'stale';
+  span.textContent = `${freshnessLabels[key] || key}: ${fmtDT(iso)}${stale ? ' ⚠' : ''}`;
+  freshnessRow.appendChild(span);
+});
+
+function renderLeague(containerId, league) {
+  const el = document.getElementById(containerId);
+
+  const todayCards = league.today_games.map(g => {
+    const resultHtml = g.result
+      ? (g.result.status === 'final'
+          ? `<div class="result">實際比分 ${g.result.actual_home_runs}-${g.result.actual_away_runs}
+             <span class="badge ${(g.home_win_pct >= 50) === g.result.actual_home_win ? 'correct' : 'wrong'}">
+             ${(g.home_win_pct >= 50) === g.result.actual_home_win ? '預測正確' : '預測錯誤'}</span></div>`
+          : `<div class="result"><span class="badge pending">已作廢</span></div>`)
+      : `<div class="result"><span class="badge pending">尚未開打/無結果</span></div>`;
+    return `<div class="game-card">
+      <div class="matchup">${g.away} @ ${g.home}</div>
+      <div class="pct">主 ${fmtPct(g.home_win_pct)}　客 ${fmtPct(g.away_win_pct)}　信心 ${g.confidence_label}</div>
+      <div class="pct">預測比分 ${g.predicted_home_runs}-${g.predicted_away_runs}</div>
+      ${resultHtml}
+    </div>`;
+  }).join('');
+
+  const recentRows = league.recent_resolved.slice(0, 15).map(g => {
+    const favoredHome = g.home_win_pct >= 50;
+    const correct = g.result ? favoredHome === g.result.actual_home_win : null;
+    return `<tr>
+      <td>${g.date}</td><td>${g.away} @ ${g.home}</td>
+      <td class="num">${fmtPct(g.home_win_pct)}</td>
+      <td class="num">${g.result ? g.result.actual_home_runs + '-' + g.result.actual_away_runs : '—'}</td>
+      <td>${correct == null ? '—' : `<span class="badge ${correct ? 'correct' : 'wrong'}">${correct ? '✓' : '✗'}</span>`}</td>
+    </tr>`;
+  }).join('');
+
+  const acc = league.accuracy;
+  const roi = league.roi;
+
+  el.innerHTML = `
+    <section>
+      <h2>今日賽事與預測</h2>
+      <p class="section-sub">共 ${league.today_games.length} 場已鎖定・尚有 ${league.pending_count} 場等待結果回收</p>
+      <div class="card-grid">${todayCards || '<p class="section-sub">今日無已鎖定的賽事預測</p>'}</div>
+    </section>
+
+    <section>
+      <div class="stat-row">
+        <div class="stat-tile">
+          <div class="label">近期預測準確率</div>
+          <div class="value">${acc ? fmtPct(acc.pct) : '—'}</div>
+          <div class="sub">${acc ? `${acc.correct}/${acc.n} 場（近${DATA.leagues === league ? '' : ''}30場內）` : '尚無已結束的已鎖定預測'}</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">ROI（僅 EV>0 下注）</div>
+          <div class="value">${roi && roi.roi_pct != null && roi.n_bets >= 5 ? fmtPct(roi.roi_pct) : '—'}</div>
+          <div class="sub">${roi ? `n=${roi.n_bets} 筆下注 / ${roi.n_games} 場有賠率${roi.n_bets < 20 ? '（樣本偏小）' : ''}` : '無賠率資料'}</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>近期已結束賽事</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>日期</th><th>對戰</th><th class="num">預測主勝%</th><th class="num">實際比分</th><th>結果</th></tr></thead>
+          <tbody>${recentRows || '<tr><td colspan="5">尚無資料</td></tr>'}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+renderLeague('league-cpbl', DATA.leagues.cpbl);
+renderLeague('league-npb', DATA.leagues.npb);
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.league').forEach(l => l.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('league-' + btn.dataset.league).classList.add('active');
+  });
+});
+
+const modelRows = document.getElementById('modelRows');
+DATA.registry.models.slice().reverse().forEach(m => {
+  const met = m.metrics || {};
+  const tr = document.createElement('tr');
+  if (m.status === 'production') tr.className = 'production';
+  tr.innerHTML = `
+    <td>${m.version}</td>
+    <td>${m.status}</td>
+    <td>${fmtDT(m.trained_at)}</td>
+    <td class="num">${m.training_row_count ?? '—'}</td>
+    <td class="num">${met.log_loss != null ? met.log_loss.toFixed(3) : '—'}</td>
+    <td class="num">${met.brier != null ? met.brier.toFixed(3) : '—'}</td>
+    <td class="num">${met.accuracy != null ? fmtPct(met.accuracy * 100) : '—'}</td>
+    <td class="num">${met.auc != null ? met.auc.toFixed(3) : '—'}</td>
+  `;
+  modelRows.appendChild(tr);
+});
+
+const ts = DATA.training_status;
+document.getElementById('trainingStatus').textContent =
+  `最後執行：${fmtDT(ts.last_run_utc)}　結果：${ts.outcome}${ts.detail ? '　(' + ts.detail + ')' : ''}`;
+</script>
+</body>
+</html>

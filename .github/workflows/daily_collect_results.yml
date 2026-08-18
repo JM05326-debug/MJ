@@ -1,0 +1,55 @@
+name: Daily collect results
+
+on:
+  schedule:
+    # 16:00 UTC ~= 00:00 Taipei / 01:00 Tokyo — after games conclude
+    - cron: '0 16 * * *'
+    # 22:00 UTC — safety re-pass for extra-innings / late finishes
+    - cron: '0 22 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r requirements.txt
+
+      # Only need up-to-date schedules/scores here, not player stats/odds.
+      - name: Fetch CPBL schedule
+        run: python scripts/fetch_cpbl.py
+        continue-on-error: true
+      - name: Fetch NPB schedule
+        run: python scripts/fetch_npb.py
+        continue-on-error: true
+
+      # No new finished games matching a pending prediction is a normal,
+      # frequent, zero-exit outcome — see collect_results.py's own comment.
+      - name: Collect results for locked predictions
+        run: python pipeline/collect_results.py
+
+      - name: Rebuild dashboard
+        if: always()
+        run: python pipeline/build_dashboard.py
+
+      - name: Commit and push
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase
+          git add data/ results/ docs/
+          git diff --cached --quiet || git commit -m "collect results: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push

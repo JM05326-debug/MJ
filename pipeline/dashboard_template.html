@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPBL / NPB 預測系統 Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-home:    #2a78d6;
+    --series-away:    #eb6834;
+    --good:           #0ca30c;
+    --warn:           #eda100;
+    --bad:            #e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7;
+      --text-muted: #898781; --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+      --series-home: #3987e5; --series-away: #d95926; --good: #0ca30c; --warn: #c98500; --bad: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7;
+    --text-muted: #898781; --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --series-home: #3987e5; --series-away: #d95926; --good: #0ca30c; --warn: #c98500; --bad: #e66767;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 56px; }
+  header.top h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  header.top p { color: var(--text-secondary); margin: 0; font-size: 0.82rem; }
+  .prod-badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(42,120,214,0.14); color: var(--series-home); margin-top: 6px; }
+
+  .freshness-row { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.7rem; color: var(--text-muted); margin: 10px 0 0; }
+  .freshness-row .stale { color: var(--warn); }
+
+  .tabs { display: flex; gap: 8px; margin: 18px 0 14px; border-bottom: 1px solid var(--gridline); }
+  .tab-btn { appearance: none; border: none; background: none; cursor: pointer; padding: 9px 4px; font-size: 0.95rem; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid transparent; margin-right: 18px; }
+  .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--series-home); }
+  .league { display: none; }
+  .league.active { display: block; }
+
+  section { margin-bottom: 26px; }
+  h2 { font-size: 0.98rem; margin: 0 0 4px; }
+  .section-sub { color: var(--text-muted); font-size: 0.78rem; margin: 0 0 10px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .stat-tile .label { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-tile .value { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-tile .sub { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .game-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.84rem; }
+  .game-card .matchup { font-weight: 600; margin-bottom: 4px; }
+  .game-card .pct { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .game-card .result { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--gridline); font-size: 0.78rem; }
+  .badge { display: inline-block; font-size: 0.66rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; }
+  .badge.correct { background: rgba(12,163,12,0.14); color: var(--good); }
+  .badge.wrong { background: rgba(227,73,72,0.14); color: var(--bad); }
+  .badge.pending { background: var(--gridline); color: var(--text-muted); }
+
+  .table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+  table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 0.82rem; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.production td:first-child { font-weight: 700; }
+
+  footer { color: var(--text-muted); font-size: 0.74rem; margin-top: 32px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>📊 CPBL / NPB 預測系統 Dashboard</h1>
+    <p id="generatedAt"></p>
+    <span class="prod-badge" id="prodBadge"></span>
+  </header>
+
+  <div class="freshness-row" id="freshnessRow"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-league="cpbl">CPBL</button>
+    <button class="tab-btn" data-league="npb">NPB</button>
+  </div>
+
+  <div id="league-cpbl" class="league active"></div>
+  <div id="league-npb" class="league"></div>
+
+  <section>
+    <h2>模型版本</h2>
+    <p class="section-sub">每個版本從訓練那一刻起永久保留，即使被拒絕升級也留著方便比較</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>版本</th><th>狀態</th><th>訓練時間</th><th class="num">資料筆數</th><th class="num">Log Loss</th><th class="num">Brier</th><th class="num">Accuracy</th><th class="num">AUC</th></tr></thead>
+        <tbody id="modelRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>訓練狀態</h2>
+    <p id="trainingStatus" class="section-sub"></p>
+  </section>
+
+  <footer>
+    <p>此 Dashboard 由雲端排程自動產生（GitHub Actions），電腦不需開機。EV/ROI 僅供參考，不構成投注建議。近期準確率為「模型看好的一方是否真的獲勝」的比例，非賠率相關指標。</p>
+  </footer>
+</div>
+
+<script>
+const DATA = __DASHBOARD_JSON__;
+
+function fmtPct(x) { return x == null ? '—' : x.toFixed(1) + '%'; }
+function fmtDT(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function ageHours(iso) {
+  if (!iso) return Infinity;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+}
+
+document.getElementById('generatedAt').textContent = '更新時間：' + fmtDT(DATA.generated_at);
+document.getElementById('prodBadge').textContent = '正式模型：' + DATA.registry.current_production;
+
+const freshnessLabels = { cpbl_data: 'CPBL 賽程', npb_data: 'NPB 賽程', cpbl_pitchers: 'CPBL 球員', npb_pitchers: 'NPB 球員' };
+const freshnessRow = document.getElementById('freshnessRow');
+Object.entries(DATA.freshness).forEach(([key, iso]) => {
+  const stale = ageHours(iso) > 30;
+  const span = document.createElement('span');
+  if (stale) span.className = 'stale';
+  span.textContent = `${freshnessLabels[key] || key}: ${fmtDT(iso)}${stale ? ' ⚠' : ''}`;
+  freshnessRow.appendChild(span);
+});
+
+function renderLeague(containerId, league) {
+  const el = document.getElementById(containerId);
+
+  const todayCards = league.today_games.map(g => {
+    const resultHtml = g.result
+      ? (g.result.status === 'final'
+          ? `<div class="result">實際比分 ${g.result.actual_home_runs}-${g.result.actual_away_runs}
+             <span class="badge ${(g.home_win_pct >= 50) === g.result.actual_home_win ? 'correct' : 'wrong'}">
+             ${(g.home_win_pct >= 50) === g.result.actual_home_win ? '預測正確' : '預測錯誤'}</span></div>`
+          : `<div class="result"><span class="badge pending">已作廢</span></div>`)
+      : `<div class="result"><span class="badge pending">尚未開打/無結果</span></div>`;
+    return `<div class="game-card">
+      <div class="matchup">${g.away} @ ${g.home}</div>
+      <div class="pct">主 ${fmtPct(g.home_win_pct)}　客 ${fmtPct(g.away_win_pct)}　信心 ${g.confidence_label}</div>
+      <div class="pct">預測比分 ${g.predicted_home_runs}-${g.predicted_away_runs}</div>
+      ${resultHtml}
+    </div>`;
+  }).join('');
+
+  const recentRows = league.recent_resolved.slice(0, 15).map(g => {
+    const favoredHome = g.home_win_pct >= 50;
+    const correct = g.result ? favoredHome === g.result.actual_home_win : null;
+    return `<tr>
+      <td>${g.date}</td><td>${g.away} @ ${g.home}</td>
+      <td class="num">${fmtPct(g.home_win_pct)}</td>
+      <td class="num">${g.result ? g.result.actual_home_runs + '-' + g.result.actual_away_runs : '—'}</td>
+      <td>${correct == null ? '—' : `<span class="badge ${correct ? 'correct' : 'wrong'}">${correct ? '✓' : '✗'}</span>`}</td>
+    </tr>`;
+  }).join('');
+
+  const acc = league.accuracy;
+  const roi = league.roi;
+
+  el.innerHTML = `
+    <section>
+      <h2>今日賽事與預測</h2>
+      <p class="section-sub">共 ${league.today_games.length} 場已鎖定・尚有 ${league.pending_count} 場等待結果回收</p>
+      <div class="card-grid">${todayCards || '<p class="section-sub">今日無已鎖定的賽事預測</p>'}</div>
+    </section>
+
+    <section>
+      <div class="stat-row">
+        <div class="stat-tile">
+          <div class="label">近期預測準確率</div>
+          <div class="value">${acc ? fmtPct(acc.pct) : '—'}</div>
+          <div class="sub">${acc ? `${acc.correct}/${acc.n} 場（近${DATA.leagues === league ? '' : ''}30場內）` : '尚無已結束的已鎖定預測'}</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">ROI（僅 EV>0 下注）</div>
+          <div class="value">${roi && roi.roi_pct != null && roi.n_bets >= 5 ? fmtPct(roi.roi_pct) : '—'}</div>
+          <div class="sub">${roi ? `n=${roi.n_bets} 筆下注 / ${roi.n_games} 場有賠率${roi.n_bets < 20 ? '（樣本偏小）' : ''}` : '無賠率資料'}</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>近期已結束賽事</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>日期</th><th>對戰</th><th class="num">預測主勝%</th><th class="num">實際比分</th><th>結果</th></tr></thead>
+          <tbody>${recentRows || '<tr><td colspan="5">尚無資料</td></tr>'}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+renderLeague('league-cpbl', DATA.leagues.cpbl);
+renderLeague('league-npb', DATA.leagues.npb);
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.league').forEach(l => l.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('league-' + btn.dataset.league).classList.add('active');
+  });
+});
+
+const modelRows = document.getElementById('modelRows');
+DATA.registry.models.slice().reverse().forEach(m => {
+  const met = m.metrics || {};
+  const tr = document.createElement('tr');
+  if (m.status === 'production') tr.className = 'production';
+  tr.innerHTML = `
+    <td>${m.version}</td>
+    <td>${m.status}</td>
+    <td>${fmtDT(m.trained_at)}</td>
+    <td class="num">${m.training_row_count ?? '—'}</td>
+    <td class="num">${met.log_loss != null ? met.log_loss.toFixed(3) : '—'}</td>
+    <td class="num">${met.brier != null ? met.brier.toFixed(3) : '—'}</td>
+    <td class="num">${met.accuracy != null ? fmtPct(met.accuracy * 100) : '—'}</td>
+    <td class="num">${met.auc != null ? met.auc.toFixed(3) : '—'}</td>
+  `;
+  modelRows.appendChild(tr);
+});
+
+const ts = DATA.training_status;
+document.getElementById('trainingStatus').textContent =
+  `最後執行：${fmtDT(ts.last_run_utc)}　結果：${ts.outcome}${ts.detail ? '　(' + ts.detail + ')' : ''}`;
+</script>
+</body>
+</html>

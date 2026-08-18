@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPBL / NPB 賽事預測</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-home:    #2a78d6; /* blue */
+    --series-away:    #eb6834; /* orange */
+    --good:           #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-home:    #3987e5;
+      --series-away:    #d95926;
+      --good:           #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-home:    #3987e5;
+    --series-away:    #d95926;
+    --good:           #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  header.top { margin-bottom: 20px; }
+  header.top h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  header.top p { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+
+  .tabs {
+    display: flex; gap: 8px; margin: 20px 0 16px;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .tab-btn {
+    appearance: none; border: none; background: none; cursor: pointer;
+    padding: 10px 4px; font-size: 1rem; font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-right: 20px;
+  }
+  .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--series-home); }
+
+  .league { display: none; }
+  .league.active { display: block; }
+
+  section { margin-bottom: 32px; }
+  h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .section-sub { color: var(--text-muted); font-size: 0.82rem; margin: 0 0 12px; }
+
+  .table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+  table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .elo-bar-cell { display: flex; align-items: center; gap: 8px; }
+  .elo-bar-track { flex: 1; height: 6px; border-radius: 3px; background: var(--gridline); overflow: hidden; }
+  .elo-bar-fill { height: 100%; background: var(--series-home); border-radius: 3px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .game-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px;
+  }
+  .game-card .date { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 8px; }
+  .matchup-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .matchup-row .team { font-weight: 600; font-size: 0.92rem; }
+  .matchup-row .pct { font-variant-numeric: tabular-nums; font-size: 0.92rem; color: var(--text-secondary); }
+  .split-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 8px 0 10px; background: var(--gridline); }
+  .split-bar .home { background: var(--series-home); }
+  .split-bar .away { background: var(--series-away); }
+  .score-line { font-size: 0.78rem; color: var(--text-muted); }
+  .away-tag::before { content: "客"; display:inline-block; font-size:0.65rem; color: var(--series-away); border:1px solid var(--series-away); border-radius:3px; padding:0 4px; margin-right:6px; }
+  .home-tag::before { content: "主"; display:inline-block; font-size:0.65rem; color: var(--series-home); border:1px solid var(--series-home); border-radius:3px; padding:0 4px; margin-right:6px; }
+
+  .pitcher-block { border-top: 1px solid var(--gridline); margin-top: 10px; padding-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .pitcher-block .side { min-width: 0; }
+  .pitcher-block .p-name { font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pitcher-block .p-hand { color: var(--text-muted); font-weight: 400; }
+  .pitcher-block .p-stats { font-size: 0.72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; line-height: 1.5; }
+  .pitcher-block .p-unknown { font-size: 0.76rem; color: var(--text-muted); font-style: italic; }
+  .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-secondary); }
+  .badge.fatigue-warn { color: var(--series-away); border-color: var(--series-away); }
+
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .confidence-badge { font-size: 0.66rem; padding: 2px 8px; border-radius: 10px; font-weight: 700; white-space: nowrap; }
+  .confidence-badge.conf-1 { background: rgba(12,163,12,0.14); color: var(--good); }
+  .confidence-badge.conf-2 { background: rgba(42,120,214,0.14); color: var(--series-home); }
+  .confidence-badge.conf-3 { background: var(--gridline); color: var(--text-secondary); }
+  .confidence-badge.conf-4 { background: rgba(235,104,52,0.14); color: var(--series-away); }
+  .confidence-badge.conf-5 { background: rgba(227,73,72,0.14); color: #e34948; }
+
+  .ev-block { border-top: 1px solid var(--gridline); margin-top: 10px; padding-top: 8px; }
+  .ev-title { font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); margin: 0 0 6px; cursor: pointer; user-select: none; }
+  .ev-title::after { content: "▾"; color: var(--text-muted); float: right; }
+  .ev-title.collapsed::after { content: "▸"; }
+  .ev-body { display: none; }
+  .ev-body.open { display: block; }
+  .ev-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .ev-field { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 68px; }
+  .ev-field label { font-size: 0.64rem; color: var(--text-muted); }
+  .ev-field input {
+    font-size: 0.8rem; padding: 5px 6px; border-radius: 5px; border: 1px solid var(--baseline);
+    background: var(--page); color: var(--text-primary); width: 100%; box-sizing: border-box;
+  }
+  .ev-result-row { display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-secondary); padding: 2px 0; font-variant-numeric: tabular-nums; }
+  .ev-result-row .verdict { font-weight: 700; }
+  .ev-result-row .verdict.positive { color: var(--good); }
+  .ev-result-row .verdict.negative { color: var(--text-muted); }
+  .ev-sub { font-size: 0.68rem; color: var(--text-muted); margin: 6px 0 2px; }
+
+  .calc-box {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 18px;
+  }
+  .calc-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.78rem; color: var(--text-muted); }
+  select {
+    font-size: 0.9rem; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--baseline);
+    background: var(--surface-1); color: var(--text-primary); min-width: 160px;
+  }
+  .calc-result { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--gridline); }
+
+  .update-box {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+    background: var(--surface-1); border: 1px solid var(--border);
+  }
+  .update-btn {
+    appearance: none; border: 1px solid var(--series-home); background: none; color: var(--series-home);
+    font-size: 0.82rem; font-weight: 600; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+  }
+  .update-btn:hover { background: var(--series-home); color: #fff; }
+  .update-hint { font-size: 0.76rem; color: var(--text-muted); }
+  .update-path { font-size: 0.72rem; color: var(--text-secondary); background: var(--page); padding: 2px 6px; border-radius: 4px; }
+
+  footer { color: var(--text-muted); font-size: 0.78rem; margin-top: 40px; line-height: 1.6; }
+  .legend { display:flex; gap:16px; font-size:0.78rem; color:var(--text-muted); margin-bottom:10px; }
+  .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  .legend .l-home::before { background: var(--series-home); }
+  .legend .l-away::before { background: var(--series-away); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>⚾ CPBL / NPB 賽事預測模型</h1>
+    <p>資料更新時間：__GENERATED_AT__ ・ 模型：Elo 戰力評分 + Poisson 得分模型（各自加權平均）</p>
+    <div class="update-box">
+      <button class="update-btn" id="updateBtn">🔄 更新資料</button>
+      <span class="update-hint" id="updateHint">點一下會複製更新指令，貼到終端機執行；或直接雙擊 <span class="update-path">update_data.bat</span></span>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-league="cpbl">CPBL 中華職棒</button>
+    <button class="tab-btn" data-league="npb">NPB 日本職棒</button>
+  </div>
+
+  <div id="league-cpbl" class="league active"></div>
+  <div id="league-npb" class="league"></div>
+
+  <footer>
+    <p><strong>模型說明：</strong>Elo 評分自 2019 年起依歷史賽果逐場更新（K=20，主場優勢 +50 分），反映球隊長期戰力；Poisson 得分模型以近期戰績為主（半衰期 180 天）估算主客兩隊預期得分。當賽程已公布先發投手時，會再疊加先發投手 FIP、牛棚 ERA 與近7天用量疲勞、以及球隊對戰左右投手的歷史得分傾向，微調預期得分（新資訊與原有球隊歷史數據各佔一半權重，避免重複計算）；未公布先發或樣本不足時自動略過該項調整。最終勝率為 Elo 與 Poisson 兩模型平均值。信心等級綜合勝率差距、兩模型一致性與資料完整度計算，不是單純的勝率高低。EV 分析需自行輸入賠率（CPBL 賽事若玩運彩已開盤會自動帶入），僅為數學期望值計算，不代表獲勝保證，僅供參考娛樂，不構成任何投注建議。</p>
+    <p>資料來源：CPBL 官方網站賽程與球員數據系統、NPB.jp 日本野球機構官方網站（球隊數據表與逐場成績）、玩運彩 playsport.cc（CPBL 先發投手與即時賠率，最佳努力取得，未開盤時不影響其他功能）。本頁資料為手動更新，點擊上方「更新資料」按鈕取得指令，或雙擊專案資料夾中的 update_data.bat 重新擷取資料並產生新版網頁。</p>
+  </footer>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+
+const ELO_HOME_ADV = 50.0;
+const POISSON_HOME_ADV = 1.08;
+const MAX_RUNS = 15;
+
+function eloWinProb(rh, rv) {
+  return 1 / (1 + Math.pow(10, -(((rh + ELO_HOME_ADV) - rv) / 400)));
+}
+function factorial(n) { let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; }
+function poissonPmf(k, lam) { return Math.exp(-lam) * Math.pow(lam, k) / factorial(k); }
+function poissonWinProb(lamHome, lamAway) {
+  let home = 0, tie = 0, away = 0;
+  const hp = [], ap = [];
+  for (let i = 0; i <= MAX_RUNS; i++) { hp.push(poissonPmf(i, lamHome)); ap.push(poissonPmf(i, lamAway)); }
+  for (let i = 0; i <= MAX_RUNS; i++) {
+    for (let j = 0; j <= MAX_RUNS; j++) {
+      const p = hp[i] * ap[j];
+      if (i > j) home += p; else if (i === j) tie += p; else away += p;
+    }
+  }
+  const total = home + tie + away;
+  home /= total; tie /= total; away /= total;
+  return { home: home + tie * 0.5, away: away + tie * 0.5 };
+}
+// Sum of two independent Poisson variables is itself Poisson(lamHome + lamAway),
+// so the total-runs over/under distribution is exact, not simulated.
+function overUnderProb(lamHome, lamAway, line) {
+  const totalLam = lamHome + lamAway;
+  const underCount = Math.floor(line);
+  let cdf = 0;
+  for (let i = 0; i <= underCount; i++) cdf += poissonPmf(i, totalLam);
+  cdf = Math.min(cdf, 1);
+  return { under: cdf, over: 1 - cdf };
+}
+// EV per 1-unit stake at decimal odds: model_prob * odds - 1 (fraction of stake returned as profit).
+function evForBet(modelProb, decimalOdds) {
+  const impliedProb = 1 / decimalOdds;
+  const ev = modelProb * decimalOdds - 1;
+  return { impliedProb, ev, roiPct: ev * 100 };
+}
+function predictGame(home, away, elo, poisson) {
+  const rh = elo[home] ?? 1500, rv = elo[away] ?? 1500;
+  const eloP = eloWinProb(rh, rv);
+  const offH = poisson.offense[home] ?? 1, defH = poisson.defense[home] ?? 1;
+  const offV = poisson.offense[away] ?? 1, defV = poisson.defense[away] ?? 1;
+  const lamHome = poisson.league_avg_runs * offH * defV * POISSON_HOME_ADV;
+  const lamAway = poisson.league_avg_runs * offV * defH;
+  const poi = poissonWinProb(lamHome, lamAway);
+  const blendedHome = (eloP + poi.home) / 2;
+  return {
+    homeWinPct: blendedHome * 100,
+    awayWinPct: (1 - blendedHome) * 100,
+    lamHome, lamAway,
+  };
+}
+
+function fmtPct(x) { return x.toFixed(1) + '%'; }
+
+function renderLeague(containerId, league) {
+  const el = document.getElementById(containerId);
+  const maxElo = Math.max(...league.rankings.map(r => r.elo));
+  const minElo = Math.min(...league.rankings.map(r => r.elo));
+  const span = Math.max(maxElo - minElo, 1);
+
+  const rankingsRows = league.rankings.map(r => `
+    <tr>
+      <td class="num">${r.rank}</td>
+      <td>${r.team}</td>
+      <td class="num">${r.elo}</td>
+      <td>
+        <div class="elo-bar-cell">
+          <div class="elo-bar-track"><div class="elo-bar-fill" style="width:${((r.elo - minElo) / span * 100).toFixed(0)}%"></div></div>
+        </div>
+      </td>
+      <td class="num">${r.offense}</td>
+      <td class="num">${r.defense}</td>
+      <td class="num">${r.team_ops ?? '—'}</td>
+      <td class="num">${r.bullpen_era ?? '—'}</td>
+      <td class="num">${r.recent_form}</td>
+    </tr>`).join('');
+
+  function pitcherBlock(sideClass, teamLabel, starter, stats) {
+    if (!starter) {
+      return `<div class="side"><div class="p-name">${teamLabel}</div><div class="p-unknown">先發未公布</div></div>`;
+    }
+    if (!stats) {
+      return `<div class="side"><div class="p-name">${starter}</div><div class="p-unknown">數據暫缺</div></div>`;
+    }
+    return `<div class="side">
+      <div class="p-name">${stats.name} <span class="p-hand">${stats.hand || ''}</span></div>
+      <div class="p-stats">ERA ${stats.era} · WHIP ${stats.whip}<br>K/9 ${stats.k9} · BB/9 ${stats.bb9}${stats.last5_era != null ? `<br>近5場先發 ERA ${stats.last5_era}` : ''}</div>
+    </div>`;
+  }
+
+  const CONF_CLASS = { '高信心': 'conf-1', '中高': 'conf-2', '中': 'conf-3', '偏低': 'conf-4', '不建議': 'conf-5' };
+
+  const cards = league.predictions.map((p, idx) => {
+    const homePct = p.blended_home_win_pct, awayPct = p.blended_away_win_pct;
+    const ctx = p.context || {};
+    const badges = [];
+    if (ctx.home_bullpen_factor != null && ctx.home_bullpen_factor > 1.05) badges.push(`<span class="badge fatigue-warn">${p.home} 牛棚偏疲勞</span>`);
+    if (ctx.away_bullpen_factor != null && ctx.away_bullpen_factor > 1.05) badges.push(`<span class="badge fatigue-warn">${p.away} 牛棚偏疲勞</span>`);
+    if (ctx.home_hand_factor != null) badges.push(`<span class="badge">${p.home} 對戰打線調整 ${ctx.home_hand_factor}x</span>`);
+    if (ctx.away_hand_factor != null) badges.push(`<span class="badge">${p.away} 對戰打線調整 ${ctx.away_hand_factor}x</span>`);
+    const confClass = CONF_CLASS[p.confidence_label] || 'conf-3';
+    return `
+    <div class="game-card" data-idx="${idx}">
+      <div class="card-head">
+        <div class="date">${p.date}</div>
+        <span class="confidence-badge ${confClass}" title="信心分數 ${p.confidence_score}/100（綜合勝率差距、Elo與Poisson一致性、資料完整度）">${p.confidence_label}</span>
+      </div>
+      <div class="matchup-row"><span class="team away-tag">${p.away}</span><span class="pct">${fmtPct(awayPct)}</span></div>
+      <div class="matchup-row"><span class="team home-tag">${p.home}</span><span class="pct">${fmtPct(homePct)}</span></div>
+      <div class="split-bar"><div class="home" style="width:${homePct.toFixed(1)}%"></div><div class="away" style="width:${awayPct.toFixed(1)}%"></div></div>
+      <div class="score-line">預測比分（主/客）：${p.predicted_home_runs} - ${p.predicted_away_runs}</div>
+      <div class="pitcher-block">
+        ${pitcherBlock('away', p.away, p.away_starter, p.away_pitcher_stats)}
+        ${pitcherBlock('home', p.home, p.home_starter, p.home_pitcher_stats)}
+      </div>
+      ${badges.length ? `<div class="badge-row">${badges.join('')}</div>` : ''}
+      <div class="ev-block">
+        <div class="ev-title">💰 EV 賠率價值分析${p.market_odds ? ' <span class="badge">已帶入玩運彩即時賠率</span>' : ''}</div>
+        <div class="ev-body">
+          <div class="ev-row">
+            <div class="ev-field"><label>${p.home} 主勝賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-home-odds" placeholder="例 1.85" value="${p.market_odds?.home_moneyline ?? ''}"></div>
+            <div class="ev-field"><label>${p.away} 客勝賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-away-odds" placeholder="例 1.95" value="${p.market_odds?.away_moneyline ?? ''}"></div>
+          </div>
+          <div class="ev-out ev-out-home"></div>
+          <div class="ev-out ev-out-away"></div>
+          <div class="ev-sub">大小分（總分）</div>
+          <div class="ev-row">
+            <div class="ev-field"><label>盤口</label><input type="number" step="0.5" class="ev-in ev-line" placeholder="例 8.5" value="${p.market_odds?.ou_line ?? ''}"></div>
+            <div class="ev-field"><label>大分賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-over-odds" placeholder="例 1.90" value="${p.market_odds?.over_odds ?? ''}"></div>
+            <div class="ev-field"><label>小分賠率</label><input type="number" step="0.01" min="1.01" class="ev-in ev-under-odds" placeholder="例 1.90" value="${p.market_odds?.under_odds ?? ''}"></div>
+          </div>
+          <div class="ev-out ev-out-over"></div>
+          <div class="ev-out ev-out-under"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const teamOptions = league.team_list.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  el.innerHTML = `
+    <section>
+      <h2>戰力排行榜</h2>
+      <p class="section-sub">依 Elo 評分排序；攻擊力/防守力為近期得分加權指數（1.00 = 聯盟平均，越高越強／防守力越低越好）；打線OPS為全隊加總計算，牛棚ERA${league.name.startsWith('NPB') ? '為近25天登板' : '為本季所有後援登板'}</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th class="num">#</th><th>球隊</th><th class="num">Elo</th><th></th><th class="num">攻擊力</th><th class="num">防守力</th><th class="num">打線OPS</th><th class="num">牛棚ERA</th><th class="num">近10戰</th></tr></thead>
+          <tbody>${rankingsRows}</tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>近期賽事預測</h2>
+      <p class="section-sub">共 ${league.predictions.length} 場・截至 ${league.last_game_date} 的 ${league.total_games} 場歷史賽事</p>
+      <div class="legend"><span class="l-home">主場</span><span class="l-away">客場</span></div>
+      <div class="card-grid">${cards || '<p class="section-sub">目前無已排定且尚未開打的賽事資料。</p>'}</div>
+    </section>
+
+    <section>
+      <h2>對戰勝率試算</h2>
+      <p class="section-sub">選擇任意兩隊，即時試算勝率與預測比分</p>
+      <div class="calc-box">
+        <div class="calc-row">
+          <div class="field">
+            <label>客隊</label>
+            <select class="calc-away">${teamOptions}</select>
+          </div>
+          <div class="field">
+            <label>主隊</label>
+            <select class="calc-home">${teamOptions}</select>
+          </div>
+        </div>
+        <div class="calc-result">
+          <div class="matchup-row"><span class="team away-tag calc-away-name"></span><span class="pct calc-away-pct"></span></div>
+          <div class="matchup-row"><span class="team home-tag calc-home-name"></span><span class="pct calc-home-pct"></span></div>
+          <div class="split-bar calc-split"><div class="home"></div><div class="away"></div></div>
+          <div class="score-line calc-score"></div>
+        </div>
+      </div>
+    </section>
+  `;
+
+  el.querySelectorAll('.game-card').forEach(card => {
+    const p = league.predictions[Number(card.dataset.idx)];
+    const title = card.querySelector('.ev-title');
+    const body = card.querySelector('.ev-body');
+    title.classList.add('collapsed');
+    title.addEventListener('click', () => {
+      body.classList.toggle('open');
+      title.classList.toggle('collapsed');
+    });
+
+    function fmtOdds(x) { return isFinite(x) ? x.toFixed(1) + '%' : '—'; }
+    function verdictHtml(ev) {
+      const pct = (ev * 100).toFixed(1);
+      return ev > 0
+        ? `<span class="verdict positive">✓ 有投注價值 (EV +${pct}%)</span>`
+        : `<span class="verdict negative">✗ 不建議投注 (EV ${pct}%)</span>`;
+    }
+
+    function recompute() {
+      const homeOdds = parseFloat(card.querySelector('.ev-home-odds').value);
+      const awayOdds = parseFloat(card.querySelector('.ev-away-odds').value);
+      const line = parseFloat(card.querySelector('.ev-line').value);
+      const overOdds = parseFloat(card.querySelector('.ev-over-odds').value);
+      const underOdds = parseFloat(card.querySelector('.ev-under-odds').value);
+      const modelHome = p.blended_home_win_pct / 100, modelAway = p.blended_away_win_pct / 100;
+
+      const homeOut = card.querySelector('.ev-out-home');
+      if (homeOdds > 1) {
+        const r = evForBet(modelHome, homeOdds);
+        homeOut.innerHTML = `<div class="ev-result-row"><span>${p.home} 隱含機率 ${fmtOdds(r.impliedProb*100)} ・模型機率 ${fmtOdds(modelHome*100)}</span>${verdictHtml(r.ev)}</div>`;
+      } else { homeOut.innerHTML = ''; }
+
+      const awayOut = card.querySelector('.ev-out-away');
+      if (awayOdds > 1) {
+        const r = evForBet(modelAway, awayOdds);
+        awayOut.innerHTML = `<div class="ev-result-row"><span>${p.away} 隱含機率 ${fmtOdds(r.impliedProb*100)} ・模型機率 ${fmtOdds(modelAway*100)}</span>${verdictHtml(r.ev)}</div>`;
+      } else { awayOut.innerHTML = ''; }
+
+      const overOut = card.querySelector('.ev-out-over');
+      const underOut = card.querySelector('.ev-out-under');
+      if (!isNaN(line)) {
+        const ou = overUnderProb(p.predicted_home_runs, p.predicted_away_runs, line);
+        if (overOdds > 1) {
+          const r = evForBet(ou.over, overOdds);
+          overOut.innerHTML = `<div class="ev-result-row"><span>大分 隱含 ${fmtOdds(r.impliedProb*100)} ・模型 ${fmtOdds(ou.over*100)}</span>${verdictHtml(r.ev)}</div>`;
+        } else { overOut.innerHTML = ''; }
+        if (underOdds > 1) {
+          const r = evForBet(ou.under, underOdds);
+          underOut.innerHTML = `<div class="ev-result-row"><span>小分 隱含 ${fmtOdds(r.impliedProb*100)} ・模型 ${fmtOdds(ou.under*100)}</span>${verdictHtml(r.ev)}</div>`;
+        } else { underOut.innerHTML = ''; }
+      } else { overOut.innerHTML = ''; underOut.innerHTML = ''; }
+    }
+    card.querySelectorAll('.ev-in').forEach(inp => inp.addEventListener('input', recompute));
+
+    if (p.market_odds) {
+      body.classList.add('open');
+      title.classList.remove('collapsed');
+      recompute();
+    }
+  });
+
+  const homeSel = el.querySelector('.calc-home');
+  const awaySel = el.querySelector('.calc-away');
+  if (league.team_list.length > 1) {
+    homeSel.selectedIndex = 0;
+    awaySel.selectedIndex = 1;
+  }
+
+  function updateCalc() {
+    const home = homeSel.value, away = awaySel.value;
+    const result = el.querySelector('.calc-result');
+    if (home === away) { result.style.display = 'none'; return; }
+    const pred = predictGame(home, away, league.elo_ratings, league.poisson);
+    result.style.display = 'block';
+    el.querySelector('.calc-away-name').textContent = away;
+    el.querySelector('.calc-home-name').textContent = home;
+    el.querySelector('.calc-away-pct').textContent = fmtPct(pred.awayWinPct);
+    el.querySelector('.calc-home-pct').textContent = fmtPct(pred.homeWinPct);
+    el.querySelector('.calc-split .home').style.width = pred.homeWinPct.toFixed(1) + '%';
+    el.querySelector('.calc-split .away').style.width = pred.awayWinPct.toFixed(1) + '%';
+    el.querySelector('.calc-score').textContent = `預測比分（主/客）：${pred.lamHome.toFixed(2)} - ${pred.lamAway.toFixed(2)}`;
+  }
+  homeSel.addEventListener('change', updateCalc);
+  awaySel.addEventListener('change', updateCalc);
+  updateCalc();
+}
+
+renderLeague('league-cpbl', DATA.cpbl);
+renderLeague('league-npb', DATA.npb);
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.league').forEach(l => l.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('league-' + btn.dataset.league).classList.add('active');
+  });
+});
+
+const updateBtn = document.getElementById('updateBtn');
+const updateHint = document.getElementById('updateHint');
+updateBtn.addEventListener('click', async () => {
+  const cmd = 'update_data.bat';
+  try {
+    await navigator.clipboard.writeText(cmd);
+    updateHint.textContent = '已複製「update_data.bat」，請在專案資料夾雙擊執行，或於終端機貼上執行';
+  } catch (e) {
+    updateHint.innerHTML = '請直接雙擊專案資料夾中的 <span class="update-path">update_data.bat</span> 執行更新（瀏覽器未授權複製剪貼簿）';
+  }
+});
+</script>
+</body>
+</html>

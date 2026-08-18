@@ -1,0 +1,84 @@
+{
+  "current_production": "v0001_logreg_2026wk33",
+  "models": [
+    {
+      "version": "v0000_elo_poisson_baseline",
+      "type": "deterministic",
+      "artifact_path": null,
+      "trained_at": null,
+      "training_row_count": null,
+      "feature_list": null,
+      "eval_window": null,
+      "metrics": {
+        "log_loss": null,
+        "brier": null,
+        "accuracy": null,
+        "auc": null,
+        "calibration_bins": null,
+        "roi": null
+      },
+      "status": "archived",
+      "promoted_at": "2026-08-16T02:08:15.260174Z",
+      "notes": "Existing hand-tuned Elo(K=20,+50 home)+Poisson(180d half-life) blend with starter/bullpen/handedness context adjustments (scripts/model.py + context.py). Registered as the permanent baseline every challenger must beat.",
+      "rejected_reason": null
+    },
+    {
+      "version": "v0001_logreg_2026wk33",
+      "type": "sklearn_logreg",
+      "artifact_path": "models/v0001_logreg_2026wk33/model.joblib",
+      "trained_at": "2026-08-16T02:25:17.349009Z",
+      "training_row_count": 7132,
+      "feature_list": [
+        "elo_p_home",
+        "poisson_p_home",
+        "elo_rating_diff",
+        "lam_home",
+        "lam_away",
+        "home_pitcher_factor",
+        "home_pitcher_factor_known",
+        "away_pitcher_factor",
+        "away_pitcher_factor_known",
+        "home_bullpen_factor",
+        "home_bullpen_factor_known",
+        "away_bullpen_factor",
+        "away_bullpen_factor_known",
+        "home_hand_factor",
+        "home_hand_factor_known",
+        "away_hand_factor",
+        "away_hand_factor_known"
+      ],
+      "eval_window": {
+        "type": "backfill_holdout",
+        "start": "2025-05-21",
+        "end": "2026-08-15",
+        "n_games": 1783,
+        "n_train": 7132,
+        "n_forward_available": 0
+      },
+      "metrics": {
+        "n": 1783,
+        "log_loss": 0.6842,
+        "brier": 0.2456,
+        "accuracy": 0.5586,
+        "auc": 0.5738,
+        "calibration_bins": [
+          {
+            "mean_predicted": 0.383,
+            "fraction_positive": 0.378
+          },
+          {
+            "mean_predicted": 0.45,
+            "fraction_positive": 0.463
+          },
+          {
+            "mean_predicted": 0.513,
+            "fraction_positive": 0.615
+          }
+        ]
+      },
+      "status": "production",
+      "promoted_at": "2026-08-16T02:25:43.668449Z",
+      "rejected_reason": null
+    }
+  ]
+}
