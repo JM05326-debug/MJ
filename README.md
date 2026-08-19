@@ -8,24 +8,55 @@
 ## 系統如何運作
 
 ```
-本機（Windows 工作排程器，每天 4 次 09:00 / 16:00 / 18:00 / 21:00）
-  scripts/update_cpbl_and_push.bat   抓 CPBL 賽程/球員數據/玩運彩賠率，commit + push
-
-雲端 GitHub Actions（每天 4 次 09:15 / 16:15 / 18:15 / 21:15，比本機晚15分鐘讓它先 push 完）
-  scripts/fetch_npb*.py        抓 NPB 賽程、球員數據
-  pipeline/lock_predictions.py 對 36 小時內即將開打、尚未鎖定的比賽產生預測並「鎖定」
-                                （用當下 repo 裡的 CPBL 資料，鎖定後永不覆寫——這是防止 leakage 的核心機制）
-  scripts/generate_site.py     產生完整版預測網頁 site/index.html
-  pipeline/build_dashboard.py  產生手機 Dashboard docs/index.html
-
-雲端 GitHub Actions（每天 2 次 台北 00:00 / 06:00）
-  pipeline/collect_results.py  比對已鎖定的預測，抓到比賽結果就記錄下來（絕不竄改原本的預測）
-
-雲端 GitHub Actions（每週一 台北凌晨 02:00）
-  pipeline/build_dataset.py    合併「歷史回填資料」+「賽前預測⋈賽後結果」成訓練集
-  pipeline/train_model.py      用訓練集訓練一個新的 challenger 模型（stacked LogisticRegression）
-  pipeline/validate_promote.py 用同一份驗證集比較 challenger 與目前 production 模型的 Log Loss，
-                                只有 challenger 明顯更好才會升級成新的 production 模型
+本機 Windows 排程器              雲端 GitHub Actions
+(每天 09:00/16:00/18:00/21:00)   (每天 09:15/16:15/18:15/21:15)
+        │                                 │
+        ▼                                 ▼
+     CPBL 資料                         NPB 資料
+(賽程/球員數據/玩運彩賠率           (賽程/球員數據，
+ commit + push 上雲端；             GitHub Actions 直接抓——
+ CPBL 官網會擋 GitHub Actions       NPB 官網不擋)
+ 的 IP，只能本機抓)
+        │                                 │
+        └────────────────┬────────────────┘
+                          ▼
+                 Feature Engineering
+           （Elo + Poisson + 先發/牛棚/左右對戰因子，
+             pipeline/feature_spec.py）
+                          ▼
+                ML Model Prediction
+        （目前 production：stacked LogisticRegression；
+          models/registry.json 記錄版本）
+                          ▼
+              今日預測結果（追加寫入
+        predictions/{league}_predictions_log.jsonl）
+                          ▼
+                   比賽開始前 🔒 鎖定
+        （45 分鐘安全緩衝內尚未鎖定則跳過，絕不事後補）
+                          ▼
+                      比賽開始
+                          ▼
+        雲端 GitHub Actions（每天 2 次 台北 00:00/06:00）
+                自動取得真實結果
+              pipeline/collect_results.py
+                          ▼
+              Prediction vs Result 比對
+        （只 append 結果，絕不竄改原本鎖定的預測）
+                          ▼
+                  累積 Training Data
+                          ▼
+        雲端 GitHub Actions（每週一 台北凌晨 02:00）
+              pipeline/build_dataset.py
+              pipeline/train_model.py
+                          ▼
+              Challenger vs Production
+        （用同一份驗證集比較 Log Loss，challenger 需
+          低至少 0.005、驗證集≥30場才有資格比較——
+          pipeline/validate_promote.py）
+                          ▼
+                新模型勝出 → 上線成新 production
+        （否則維持現有 production，不受資料量不足
+          或訓練失敗影響）
 ```
 
 ## CPBL 本機排程
