@@ -83,7 +83,7 @@
   .badge.pending { background: var(--gridline); color: var(--text-muted); }
 
   .table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
-  table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 0.82rem; }
+  table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 0.82rem; }
   th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
   th { color: var(--text-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -203,17 +203,27 @@ function renderLeague(containerId, league) {
     const winner = predictedWinner(g);
     const favoredHome = g.home_win_pct >= 50;
     const correct = g.result ? favoredHome === g.result.actual_home_win : null;
+    const actualTotal = g.result ? g.result.actual_total_runs : null;
+    const predictedTotal = g.predicted_total_runs ?? (g.predicted_home_runs + g.predicted_away_runs);
+    const ouBadges = actualTotal == null ? '—' : OU_LINES.map(line => {
+      const predictedOver = predictedTotal > line;
+      const actualOver = actualTotal > line;
+      const ok = predictedOver === actualOver;
+      return `<span class="badge ${ok ? 'correct' : 'wrong'}" title="${line} 大小分">${line}${ok ? '✓' : '✗'}</span>`;
+    }).join(' ');
     return `<tr>
       <td>${g.date}</td><td>${g.away} @ ${g.home}</td>
       <td>${winner.team}</td>
       <td class="num">${fmtPct(winner.pct)}</td>
       <td class="num">${g.result ? g.result.actual_home_runs + '-' + g.result.actual_away_runs : '—'}</td>
       <td>${correct == null ? '—' : `<span class="badge ${correct ? 'correct' : 'wrong'}">${correct ? '✓' : '✗'}</span>`}</td>
+      <td>${ouBadges}</td>
     </tr>`;
   }).join('');
 
   const acc = league.accuracy;
   const roi = league.roi;
+  const ou = league.ou_accuracy || {};
 
   el.innerHTML = `
     <section>
@@ -234,6 +244,14 @@ function renderLeague(containerId, league) {
           <div class="value">${roi && roi.roi_pct != null && roi.n_bets >= 5 ? fmtPct(roi.roi_pct) : '—'}</div>
           <div class="sub">${roi ? `n=${roi.n_bets} 筆下注 / ${roi.n_games} 場有賠率${roi.n_bets < 20 ? '（樣本偏小）' : ''}` : '無賠率資料'}</div>
         </div>
+        ${OU_LINES.map(line => {
+          const stat = ou[String(line)];
+          return `<div class="stat-tile">
+            <div class="label">大小分 ${line} 準確率</div>
+            <div class="value">${stat && stat.pct != null ? fmtPct(stat.pct) : '—'}</div>
+            <div class="sub">${stat && stat.n ? `${stat.correct}/${stat.n} 場` : '尚無資料'}</div>
+          </div>`;
+        }).join('')}
       </div>
     </section>
 
@@ -241,8 +259,8 @@ function renderLeague(containerId, league) {
       <h2>近期已結束賽事</h2>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>日期</th><th>對戰</th><th>預測勝隊</th><th class="num">勝率</th><th class="num">實際比分</th><th>結果</th></tr></thead>
-          <tbody>${recentRows || '<tr><td colspan="6">尚無資料</td></tr>'}</tbody>
+          <thead><tr><th>日期</th><th>對戰</th><th>預測勝隊</th><th class="num">勝率</th><th class="num">實際比分</th><th>勝負結果</th><th>大小分結果</th></tr></thead>
+          <tbody>${recentRows || '<tr><td colspan="7">尚無資料</td></tr>'}</tbody>
         </table>
       </div>
     </section>

@@ -88,6 +88,32 @@ def _accuracy(resolved: list[dict]) -> dict | None:
     return {"correct": correct, "n": len(resolved), "pct": round(correct / len(resolved) * 100, 1)}
 
 
+OU_LINES = (5.5, 6.5, 7.5)
+
+
+def _ou_accuracy(resolved: list[dict]) -> dict:
+    """Per-line (5.5/6.5/7.5) over/under call accuracy — same 大/小 calls
+    shown on each game card, tracked the same way win-probability accuracy
+    is: was the call right against what actually happened."""
+    out = {}
+    for line in OU_LINES:
+        correct = n = 0
+        for g in resolved:
+            actual_total = g["result"].get("actual_total_runs")
+            if actual_total is None:
+                continue
+            predicted_total = g.get("predicted_total_runs")
+            if predicted_total is None:
+                predicted_total = g["predicted_home_runs"] + g["predicted_away_runs"]
+            predicted_over = predicted_total > line
+            actual_over = actual_total > line
+            if predicted_over == actual_over:
+                correct += 1
+            n += 1
+        out[str(line)] = {"correct": correct, "n": n, "pct": round(correct / n * 100, 1) if n else None}
+    return out
+
+
 def _roi(resolved: list[dict]) -> dict | None:
     """EV-gated flat-stake ROI, only over games where market odds were
     captured at lock time. Never used to gate model promotion — reporting
@@ -138,6 +164,7 @@ def build():
             "today_games": _today_games(joined, today_str),
             "recent_resolved": resolved,
             "accuracy": _accuracy(resolved),
+            "ou_accuracy": _ou_accuracy(resolved),
             "roi": _roi(resolved),
             "pending_count": len([g for g in joined if not g.get("result")]),
         }
