@@ -1,5 +1,5 @@
 {
-  "current_production": "v0001_logreg_2026wk33",
+  "current_production": "v0002_logreg_2026wk34",
   "models": [
     {
       "version": "v0000_elo_poisson_baseline",
@@ -76,8 +76,66 @@
           }
         ]
       },
-      "status": "production",
+      "status": "archived",
       "promoted_at": "2026-08-16T02:25:43.668449Z",
+      "rejected_reason": null
+    },
+    {
+      "version": "v0002_logreg_2026wk34",
+      "type": "sklearn_logreg",
+      "artifact_path": "models/v0002_logreg_2026wk34/model.joblib",
+      "trained_at": "2026-08-19T16:31:04.351405Z",
+      "training_row_count": 4458,
+      "feature_list": [
+        "elo_p_home",
+        "poisson_p_home",
+        "elo_rating_diff",
+        "lam_home",
+        "lam_away",
+        "home_pitcher_factor",
+        "home_pitcher_factor_known",
+        "away_pitcher_factor",
+        "away_pitcher_factor_known",
+        "home_bullpen_factor",
+        "home_bullpen_factor_known",
+        "away_bullpen_factor",
+        "away_bullpen_factor_known",
+        "home_hand_factor",
+        "home_hand_factor_known",
+        "away_hand_factor",
+        "away_hand_factor_known"
+      ],
+      "eval_window": {
+        "type": "backfill_holdout",
+        "start": "2025-09-06",
+        "end": "2026-08-18",
+        "n_games": 1115,
+        "n_train": 4458,
+        "n_forward_available": 0
+      },
+      "metrics": {
+        "n": 1115,
+        "log_loss": 0.6868,
+        "brier": 0.2468,
+        "accuracy": 0.548,
+        "auc": 0.5568,
+        "calibration_bins": [
+          {
+            "mean_predicted": 0.472,
+            "fraction_positive": 0.461
+          },
+          {
+            "mean_predicted": 0.547,
+            "fraction_positive": 0.553
+          },
+          {
+            "mean_predicted": 0.607,
+            "fraction_positive": 0.532
+          }
+        ]
+      },
+      "status": "production",
+      "promoted_at": "2026-08-19T16:31:19.984657Z",
       "rejected_reason": null
     }
   ]

@@ -70,21 +70,26 @@ def fetch_month(year: int, month_code: str):
         score2 = td.select_one(".score2")
         if not team1 or not team2:
             continue
-        t1 = team1.get_text(strip=True)
-        t2 = team2.get_text(strip=True)
-        s1 = score1.get_text(strip=True) if score1 else ""
-        s2 = score2.get_text(strip=True) if score2 else ""
+        # npb.jp always lists the HOME team first (.team1) and the away team
+        # second (.team2) — verified against 6 independent games in August
+        # 2026 by cross-checking each against its team's real home stadium
+        # (e.g. team1=巨人 at 東京ドーム, team1=広島 at マツダスタジアム, etc,
+        # all 6 consistent). Do not swap this back without re-verifying.
+        t_home = team1.get_text(strip=True)
+        t_away = team2.get_text(strip=True)
+        s_home = score1.get_text(strip=True) if score1 else ""
+        s_away = score2.get_text(strip=True) if score2 else ""
         link = td.find("a")
         slug = link["href"].strip("/") if link and link.get("href") else None
         mm, dd = current_month_day
         date_str = f"{year}-{mm:02d}-{dd:02d}"
-        if s1.isdigit() and s2.isdigit():
+        if s_home.isdigit() and s_away.isdigit():
             games.append({
                 "date": date_str,
-                "v": t1,
-                "h": t2,
-                "vs": int(s1),
-                "hs": int(s2),
+                "v": t_away,
+                "h": t_home,
+                "vs": int(s_away),
+                "hs": int(s_home),
                 "slug": slug,
             })
         else:
@@ -92,14 +97,14 @@ def fetch_month(year: int, month_code: str):
             pit_divs = tr.select(".pit")
             v_pitcher = h_pitcher = ""
             if len(pit_divs) >= 2:
-                m1 = re.search(r"先発：(\S+)", pit_divs[0].get_text(strip=True))
-                m2 = re.search(r"先発：(\S+)", pit_divs[1].get_text(strip=True))
-                v_pitcher = m1.group(1) if m1 else ""
-                h_pitcher = m2.group(1) if m2 else ""
+                m_home = re.search(r"先発：(\S+)", pit_divs[0].get_text(strip=True))
+                m_away = re.search(r"先発：(\S+)", pit_divs[1].get_text(strip=True))
+                h_pitcher = m_home.group(1) if m_home else ""
+                v_pitcher = m_away.group(1) if m_away else ""
             games.append({
                 "date": date_str,
-                "v": t1,
-                "h": t2,
+                "v": t_away,
+                "h": t_home,
                 "vs": None,
                 "hs": None,
                 "slug": slug,
@@ -114,7 +119,7 @@ EXCLUDE_TEAMS = {"セ・リーグ", "パ・リーグ"}  # All-Star Game squads, 
 
 
 def main():
-    years = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+    years = [2023, 2024, 2025, 2026]
     history = []
     upcoming = []
     for year in years:
