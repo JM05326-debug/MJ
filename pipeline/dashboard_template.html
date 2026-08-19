@@ -63,7 +63,13 @@
 
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
   .game-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.84rem; }
-  .game-card .matchup { font-weight: 600; margin-bottom: 4px; }
+  .game-card .matchup { color: var(--text-muted); font-size: 0.76rem; margin-bottom: 6px; }
+  .game-card .winner-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .game-card .winner-team { font-weight: 700; font-size: 1.02rem; }
+  .game-card .winner-pct { font-weight: 700; font-size: 1.02rem; color: var(--series-home); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .game-card .split-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 0 0 8px; background: var(--gridline); }
+  .game-card .split-bar .home { background: var(--series-home); }
+  .game-card .split-bar .away { background: var(--series-away); }
   .game-card .pct { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .game-card .result { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--gridline); font-size: 0.78rem; }
   .badge { display: inline-block; font-size: 0.66rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; }
@@ -147,10 +153,17 @@ Object.entries(DATA.freshness).forEach(([key, iso]) => {
   freshnessRow.appendChild(span);
 });
 
+function predictedWinner(g) {
+  return g.home_win_pct >= 50
+    ? { team: g.home, pct: g.home_win_pct, isHome: true }
+    : { team: g.away, pct: g.away_win_pct, isHome: false };
+}
+
 function renderLeague(containerId, league) {
   const el = document.getElementById(containerId);
 
   const todayCards = league.today_games.map(g => {
+    const winner = predictedWinner(g);
     const resultHtml = g.result
       ? (g.result.status === 'final'
           ? `<div class="result">實際比分 ${g.result.actual_home_runs}-${g.result.actual_away_runs}
@@ -159,7 +172,12 @@ function renderLeague(containerId, league) {
           : `<div class="result"><span class="badge pending">已作廢</span></div>`)
       : `<div class="result"><span class="badge pending">尚未開打/無結果</span></div>`;
     return `<div class="game-card">
-      <div class="matchup">${g.away} @ ${g.home}</div>
+      <div class="matchup">${g.away}（客）@ ${g.home}（主）</div>
+      <div class="winner-line">
+        <span class="winner-team">🏆 ${winner.team}${winner.isHome ? '（主）' : '（客）'}</span>
+        <span class="winner-pct">${fmtPct(winner.pct)}</span>
+      </div>
+      <div class="split-bar"><div class="home" style="width:${g.home_win_pct}%"></div><div class="away" style="width:${g.away_win_pct}%"></div></div>
       <div class="pct">主 ${fmtPct(g.home_win_pct)}　客 ${fmtPct(g.away_win_pct)}　信心 ${g.confidence_label}</div>
       <div class="pct">預測比分 ${g.predicted_home_runs}-${g.predicted_away_runs}</div>
       ${resultHtml}
@@ -167,11 +185,13 @@ function renderLeague(containerId, league) {
   }).join('');
 
   const recentRows = league.recent_resolved.slice(0, 15).map(g => {
+    const winner = predictedWinner(g);
     const favoredHome = g.home_win_pct >= 50;
     const correct = g.result ? favoredHome === g.result.actual_home_win : null;
     return `<tr>
       <td>${g.date}</td><td>${g.away} @ ${g.home}</td>
-      <td class="num">${fmtPct(g.home_win_pct)}</td>
+      <td>${winner.team}</td>
+      <td class="num">${fmtPct(winner.pct)}</td>
       <td class="num">${g.result ? g.result.actual_home_runs + '-' + g.result.actual_away_runs : '—'}</td>
       <td>${correct == null ? '—' : `<span class="badge ${correct ? 'correct' : 'wrong'}">${correct ? '✓' : '✗'}</span>`}</td>
     </tr>`;
@@ -206,8 +226,8 @@ function renderLeague(containerId, league) {
       <h2>近期已結束賽事</h2>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>日期</th><th>對戰</th><th class="num">預測主勝%</th><th class="num">實際比分</th><th>結果</th></tr></thead>
-          <tbody>${recentRows || '<tr><td colspan="5">尚無資料</td></tr>'}</tbody>
+          <thead><tr><th>日期</th><th>對戰</th><th>預測勝隊</th><th class="num">勝率</th><th class="num">實際比分</th><th>結果</th></tr></thead>
+          <tbody>${recentRows || '<tr><td colspan="6">尚無資料</td></tr>'}</tbody>
         </table>
       </div>
     </section>
