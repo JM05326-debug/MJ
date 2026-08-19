@@ -71,6 +71,11 @@
   .game-card .split-bar .home { background: var(--series-home); }
   .game-card .split-bar .away { background: var(--series-away); }
   .game-card .pct { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .ou-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .ou-total { font-size: 0.72rem; color: var(--text-muted); }
+  .ou-chip { font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+  .ou-chip.over { background: rgba(235,104,52,0.14); color: var(--series-away); }
+  .ou-chip.under { background: rgba(42,120,214,0.14); color: var(--series-home); }
   .game-card .result { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--gridline); font-size: 0.78rem; }
   .badge { display: inline-block; font-size: 0.66rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; }
   .badge.correct { background: rgba(12,163,12,0.14); color: var(--good); }
@@ -159,6 +164,16 @@ function predictedWinner(g) {
     : { team: g.away, pct: g.away_win_pct, isHome: false };
 }
 
+const OU_LINES = [5.5, 6.5, 7.5];
+function overUnderHtml(g) {
+  const total = g.predicted_total_runs ?? (g.predicted_home_runs + g.predicted_away_runs);
+  const chips = OU_LINES.map(line => {
+    const over = total > line;
+    return `<span class="ou-chip ${over ? 'over' : 'under'}">${line} ${over ? '大' : '小'}</span>`;
+  }).join('');
+  return `<div class="ou-row"><span class="ou-total">預測總分 ${total.toFixed(1)}</span>${chips}</div>`;
+}
+
 function renderLeague(containerId, league) {
   const el = document.getElementById(containerId);
 
@@ -179,7 +194,7 @@ function renderLeague(containerId, league) {
       </div>
       <div class="split-bar"><div class="home" style="width:${g.home_win_pct}%"></div><div class="away" style="width:${g.away_win_pct}%"></div></div>
       <div class="pct">主 ${fmtPct(g.home_win_pct)}　客 ${fmtPct(g.away_win_pct)}　信心 ${g.confidence_label}</div>
-      <div class="pct">預測比分 ${g.predicted_home_runs}-${g.predicted_away_runs}</div>
+      ${overUnderHtml(g)}
       ${resultHtml}
     </div>`;
   }).join('');
