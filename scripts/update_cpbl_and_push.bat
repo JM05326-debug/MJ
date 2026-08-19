@@ -9,22 +9,25 @@ rem locking, results collection, training, dashboard) stays fully cloud-
 rem automated and does not depend on this machine being on.
 cd /d "%~dp0.."
 
-echo [1/5] git pull...
-git pull --rebase
-if errorlevel 1 goto :error
+rem No pull here before fetching on purpose: fetching only overwrites local
+rem data/*.json files via a plain Python script, it doesn't touch git state,
+rem so it can't conflict with anything upstream. This also makes a run
+rem that got killed/timed out mid-fetch safe to just retry — an interrupted
+rem previous run may leave data/*.json modified-but-uncommitted, and a pull
+rem here would fail on that dirty tree before ever getting to fetch again.
 
-echo [2/5] CPBL schedule...
+echo [1/4] CPBL schedule...
 python scripts\fetch_cpbl.py
 if errorlevel 1 goto :error
 
-echo [3/5] CPBL player stats...
+echo [2/4] CPBL player stats...
 python scripts\fetch_cpbl_players.py
 if errorlevel 1 goto :error
 
-echo [4/5] CPBL odds (best-effort)...
+echo [3/4] CPBL odds (best-effort)...
 python scripts\fetch_cpbl_odds.py
 
-echo [5/5] commit and push...
+echo [4/4] commit and push...
 git add data\cpbl_data.json data\cpbl_pitchers.json data\cpbl_batters.json data\cpbl_odds.json
 git diff --cached --quiet
 if errorlevel 1 (
