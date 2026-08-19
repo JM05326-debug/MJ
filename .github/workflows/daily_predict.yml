@@ -3,15 +3,14 @@ name: Daily predict
 on:
   schedule:
     # Timed 15min after the local CPBL update task (see scripts/update_cpbl_and_push.bat
-    # + README) so this run picks up freshly-pushed CPBL data rather than racing it —
-    # CPBL's own site blocks GitHub Actions' published IP ranges, so that half of the
-    # fetch has to run from the user's machine; everything else here is unaffected.
-    # 01:45 UTC ~= 09:45 Taipei / 10:45 Tokyo (morning pass)
-    - cron: '45 1 * * *'
-    # 06:45 UTC ~= 14:45 Taipei / 15:45 Tokyo (afternoon, most starters announced by now)
-    - cron: '45 6 * * *'
-    # 09:00 UTC ~= 17:00 Taipei / 18:00 Tokyo (final pass before typical evening first pitch)
-    - cron: '0 9 * * *'
+    # + README, tasks CPBL_Update_1/2 at 14:00/17:30 Taipei) so this run picks up
+    # freshly-pushed CPBL data rather than racing it — CPBL's own site blocks GitHub
+    # Actions' published IP ranges, so that half of the fetch has to run from the
+    # user's machine; everything else here is unaffected.
+    # 06:15 UTC ~= 14:15 Taipei / 15:15 Tokyo
+    - cron: '15 6 * * *'
+    # 09:45 UTC ~= 17:45 Taipei / 18:45 Tokyo (before typical evening first pitch)
+    - cron: '45 9 * * *'
   workflow_dispatch: {}
 
 permissions:

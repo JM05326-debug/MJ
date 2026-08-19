@@ -8,10 +8,10 @@
 ## 系統如何運作
 
 ```
-本機（Windows 工作排程器，每天 3 次 09:30 / 14:30 / 16:45）
+本機（Windows 工作排程器，每天 2 次 14:00 / 17:30）
   scripts/update_cpbl_and_push.bat   抓 CPBL 賽程/球員數據/玩運彩賠率，commit + push
 
-雲端 GitHub Actions（每天 3 次 09:45 / 14:45 / 17:00，比本機晚15分鐘讓它先 push 完）
+雲端 GitHub Actions（每天 2 次 14:15 / 17:45，比本機晚15分鐘讓它先 push 完）
   scripts/fetch_npb*.py        抓 NPB 賽程、球員數據
   pipeline/lock_predictions.py 對 36 小時內即將開打、尚未鎖定的比賽產生預測並「鎖定」
                                 （用當下 repo 裡的 CPBL 資料，鎖定後永不覆寫——這是防止 leakage 的核心機制）
@@ -30,7 +30,7 @@
 
 ## CPBL 本機排程
 
-Windows 工作排程器已建立三個任務（`CPBL_Update_1/2/3`，各對應 09:30/14:30/16:45），執行 `scripts/update_cpbl_and_push.bat`。**這部分需要電腦在排程時間點是開機且已登入的狀態**（工作排程器預設只在使用者登入時執行）；如果那幾個時間點電腦是關的，當天那一輪就會跳過，CPBL 資料會沿用上一次成功抓到的版本，不會出錯、也不會補跑，等下一次電腦開機時的排程即可。
+Windows 工作排程器已建立兩個任務（`CPBL_Update_1/2`，各對應 14:00/17:30），執行 `scripts/update_cpbl_and_push.bat`。**這部分需要電腦在排程時間點是開機且已登入的狀態**（工作排程器預設只在使用者登入時執行）；如果那幾個時間點電腦是關的，當天那一輪就會跳過，CPBL 資料會沿用上一次成功抓到的版本，不會出錯、也不會補跑，等下一次電腦開機時的排程即可。
 
 管理指令（PowerShell）：
 ```powershell
