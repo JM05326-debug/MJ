@@ -7,8 +7,22 @@ on:
     # picks up freshly-pushed CPBL data rather than racing it — CPBL's own site blocks
     # GitHub Actions' published IP ranges, so that half of the fetch has to run from
     # the user's machine; everything else here is unaffected.
+    #
+    # GitHub's own scheduled-workflow cron can silently not fire for a given
+    # slot during infra load (documented GitHub behavior, not a config bug —
+    # confirmed happening here: two consecutive slots, 21:15 and the next
+    # day's 09:15 Taipei, both never produced a run, leaving the dashboard
+    # ~18h stale). Every step this workflow runs is idempotent/safe to
+    # re-run, so the practical mitigation is a denser schedule: the four
+    # times below are unchanged, plus two more added to break up the
+    # 21:15->09:15 overnight gap (previously 12h with zero slots in it, now
+    # at most ~6h between any two consecutive slots).
+    # 19:15 UTC (previous day) ~= 03:15 Taipei / 04:15 Tokyo
+    - cron: '15 19 * * *'
     # 01:15 UTC ~= 09:15 Taipei / 10:15 Tokyo
     - cron: '15 1 * * *'
+    # 04:45 UTC ~= 12:45 Taipei / 13:45 Tokyo
+    - cron: '45 4 * * *'
     # 08:15 UTC ~= 16:15 Taipei / 17:15 Tokyo
     - cron: '15 8 * * *'
     # 10:15 UTC ~= 18:15 Taipei / 19:15 Tokyo
