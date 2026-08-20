@@ -2,11 +2,8 @@ name: Daily predict
 
 on:
   schedule:
-    # Timed 15min after the local CPBL update task (see scripts/update_cpbl_and_push.bat
-    # + README, tasks CPBL_Update_1-4 at 09:00/16:00/18:00/21:00 Taipei) so this run
-    # picks up freshly-pushed CPBL data rather than racing it — CPBL's own site blocks
-    # GitHub Actions' published IP ranges, so that half of the fetch has to run from
-    # the user's machine; everything else here is unaffected.
+    # 4x/day, Taipei/Tokyo local times below. Doesn't depend on any local
+    # machine being on — see the CPBL fetch step comment further down.
     # 01:15 UTC ~= 09:15 Taipei / 10:15 Tokyo
     - cron: '15 1 * * *'
     # 08:15 UTC ~= 16:15 Taipei / 17:15 Tokyo
@@ -36,21 +33,30 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # CPBL is NOT fetched here — www.cpbl.com.tw blocks GitHub Actions'
-      # published IP ranges (confirmed: 404 on every CPBL endpoint from this
-      # runner, while the exact same requests succeed from a residential/
-      # other-cloud IP). data/cpbl_*.json is instead kept fresh by a
-      # Windows Task Scheduler job on the user's machine that pushes
-      # straight to this repo — see scripts/update_cpbl_and_push.bat and the
-      # README. This job just uses whatever CPBL data is currently in the
-      # repo (possibly a few hours old, never older than ~8h given that
-      # schedule) and fetches NPB fresh itself.
+      # CPBL used to require a local Windows Task Scheduler job because
+      # www.cpbl.com.tw blocks GitHub Actions' published IP ranges
+      # (confirmed: 404 on every CPBL endpoint from this runner). Rebas
+      # 野球革命 (rebas.tw) — a different domain, not on that blocklist —
+      # publishes the same schedule/player data via a public JSON API, so
+      # CPBL fetching moved here alongside NPB; see scripts/fetch_cpbl.py
+      # and scripts/fetch_cpbl_players.py for the endpoints used.
       #
       # Each fetcher below is independent and best-effort: a failure must
       # not block the others, and must never touch that source's existing
       # data/*.json — the fetcher only writes via a single json.dump() at
       # the very end of main(), so an exception mid-run leaves the prior
-      # file untouched on disk automatically.
+      # file untouched on disk automatically. fetch_cpbl_players.py reads
+      # the schedule fetch_cpbl.py just wrote (for starting-pitcher/role
+      # lookups), so it has to run after it.
+      - name: Fetch CPBL schedule
+        run: python scripts/fetch_cpbl.py
+        continue-on-error: true
+      - name: Fetch CPBL player stats
+        run: python scripts/fetch_cpbl_players.py
+        continue-on-error: true
+      - name: Fetch CPBL odds (best-effort)
+        run: python scripts/fetch_cpbl_odds.py
+        continue-on-error: true
       - name: Fetch NPB schedule
         run: python scripts/fetch_npb.py
         continue-on-error: true
