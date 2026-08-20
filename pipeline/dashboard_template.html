@@ -158,6 +158,14 @@ Object.entries(DATA.freshness).forEach(([key, iso]) => {
   freshnessRow.appendChild(span);
 });
 
+function confidenceStars(score) {
+  // Mirrors scripts/context.py's CONFIDENCE_BANDS thresholds (70/55/40/25)
+  // so a given score always lands on the same star count as it would the
+  // old text label (高信心/中高/中/偏低/不建議), just rendered as ★1-5.
+  const filled = score >= 70 ? 5 : score >= 55 ? 4 : score >= 40 ? 3 : score >= 25 ? 2 : 1;
+  return '★'.repeat(filled) + '☆'.repeat(5 - filled);
+}
+
 function predictedWinner(g) {
   return g.home_win_pct >= 50
     ? { team: g.home, pct: g.home_win_pct, isHome: true }
@@ -193,7 +201,7 @@ function renderLeague(containerId, league) {
         <span class="winner-pct">${fmtPct(winner.pct)}</span>
       </div>
       <div class="split-bar"><div class="home" style="width:${g.home_win_pct}%"></div><div class="away" style="width:${g.away_win_pct}%"></div></div>
-      <div class="pct">主 ${fmtPct(g.home_win_pct)}　客 ${fmtPct(g.away_win_pct)}　信心 ${g.confidence_label}</div>
+      <div class="pct">主 ${fmtPct(g.home_win_pct)}　客 ${fmtPct(g.away_win_pct)}　信心 <span title="${g.confidence_label}（${g.confidence_score}/100）">${confidenceStars(g.confidence_score)}</span></div>
       ${overUnderHtml(g)}
       ${resultHtml}
     </div>`;
