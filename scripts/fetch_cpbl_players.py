@@ -1,11 +1,21 @@
 # -*- coding: utf-8 -*-
-"""Fetch CPBL pitcher & batter data: roster, season stat lines (via each
-player's game log), throwing hand, last-5-starts, and last-7-days bullpen
+"""Fetch CPBL pitcher & batter data: season stat lines (from each player's
+per-game logs), throwing hand, last-5-starts, and last-7-days bullpen
 workload. Saves data/cpbl_pitchers.json and data/cpbl_batters.json.
+
+Sourced from Rebas 野球革命 (rebas.tw)'s public JSON API — see
+scripts/fetch_cpbl.py for why (GitHub Actions can reach rebas.tw, unlike
+www.cpbl.com.tw which this replaces). Output shape is unchanged so
+scripts/context.py and pipeline/feature_spec.py don't need to change.
+
+Depends on data/cpbl_data.json already being fresh (fetch_cpbl.py runs
+first in both the workflow and the old local batch script) — its h/v +
+h_pitcher/v_pitcher columns are the only source of "who started this game"
+info, since rebas's per-game box line for a pitcher doesn't carry a role
+flag the way the old CPBL API's RoleType did.
 """
 import _console  # noqa: F401  (must import first to fix console encoding)
 import json
-import re
 import time
 from datetime import date, timedelta
 from pathlib import Path
@@ -15,89 +25,111 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0 Safari/537.36"}
-BASE = "https://www.cpbl.com.tw"
-YEAR = str(date.today().year)
-
-TEAMS = {
-    "ACN": "中信兄弟", "ADD": "統一7-ELEVEn獅", "AJL": "樂天桃猿",
-    "AEO": "富邦悍將", "AAA": "味全龍", "AKP": "台鋼雄鷹",
-}
+BASE = "https://www.rebas.tw"
+REQUEST_PAUSE = 0.12
 
 
-def get_token(session: requests.Session, url: str) -> str:
-    r = session.get(url, headers=HEADERS, timeout=20)
-    r.raise_for_status()
-    m = re.search(r'RequestVerificationToken:\s*[\'"]([^\'"]+)[\'"]', r.text)
-    if m:
-        return m.group(1)
-    m = re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', r.text)
-    return m.group(1) if m else ""
-
-
-def fetch_roster(session: requests.Session, club_no: str):
-    r = session.get(f"{BASE}/team?ClubNo={club_no}", headers=HEADERS, timeout=20)
-    r.raise_for_status()
-    html = r.text
-    items = re.findall(
-        r'<div class="pos">([^<]+)</div>\s*<div class="name"><a href="/team/person\?Acnt=(\d+)">([^<]+)</a>',
-        html,
+def find_current_season(session: requests.Session) -> tuple[str, str]:
+    """Returns (season_uniqid, year) for the CPBL regular season currently
+    in progress, by scanning the calendar around today for a regular-season
+    game (title=='中職{year}年' — same filter fetch_cpbl.py uses to exclude
+    exhibition/postseason)."""
+    start = (date.today() - timedelta(days=14)).isoformat()
+    r = session.get(
+        f"{BASE}/api/formal/calendar",
+        params={"start": start, "days": 29, "league_uniqid": "CPBL"},
+        headers=HEADERS, timeout=30,
     )
-    pitchers, batters = [], []
-    for pos, acnt, name in items:
-        if pos == "投手":
-            pitchers.append({"acnt": acnt, "name": name})
-        elif pos != "教練":
-            batters.append({"acnt": acnt, "name": name, "pos": pos})
-    return pitchers, batters
+    r.raise_for_status()
+    for g in r.json().get("data") or []:
+        season = g.get("season") or {}
+        year = season.get("uniqid", "").split("-")[1] if season.get("uniqid") else ""
+        if year and season.get("title") == f"中職{year}年":
+            return season["uniqid"], year
+    raise RuntimeError("could not find a current CPBL regular-season game in +/-14 days to identify season_uniqid")
 
 
-def fetch_hand(session: requests.Session, acnt: str) -> str:
-    r = session.get(f"{BASE}/team/person?acnt={acnt}", headers=HEADERS, timeout=20)
-    if r.status_code != 200:
-        return ""
-    m = re.search(r"投打習慣</div>\s*<div[^>]*>([^<]+)</div>", r.text)
-    if m:
-        return m.group(1).strip()
-    m2 = re.search(r"(右投|左投|左右投)(右打|左打|左右打)", r.text)
-    return m2.group(0) if m2 else ""
+def fetch_teams(session: requests.Session, season_uniqid: str) -> dict:
+    """team_uniqid -> official team name."""
+    r = session.get(f"{BASE}/api/seasons/{season_uniqid}/teams", headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    return {t["origin"]["uniqid"]: t["name"] for t in r.json().get("data") or []}
 
 
-def fetch_follow_score(session: requests.Session, token: str, referer: str, acnt: str, defend_station: str):
-    headers = {
-        "RequestVerificationToken": token,
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Referer": referer,
-    }
-    data = {"acnt": acnt, "defendStation": defend_station, "year": YEAR, "kindCode": "A"}
-    r = session.post(f"{BASE}/team/getfollowscore", data=data, headers=headers, timeout=20)
+def fetch_leaders(session: requests.Session, season_uniqid: str, player_type: str) -> list:
+    """Full-season list of every player with at least one appearance
+    (omitting the `pa` param, unlike the site's own UI which defaults to a
+    qualifying minimum, returns the whole league — verified: 155 pitchers
+    league-wide vs. a handful when a minimum is applied)."""
+    r = session.get(
+        f"{BASE}/api/seasons/{season_uniqid}/leaders",
+        params={"type": player_type, "section": "new"},
+        headers=HEADERS, timeout=30,
+    )
+    r.raise_for_status()
+    return r.json().get("data") or []
+
+
+def fetch_player_logs(session: requests.Session, uniqid: str, season_uniqid: str) -> list:
+    r = session.get(
+        f"{BASE}/api/formal/players/{uniqid}/seasons/{season_uniqid}/logs",
+        headers=HEADERS, timeout=30,
+    )
     if r.status_code != 200:
         return []
-    j = r.json()
-    if not j.get("Success"):
-        return []
-    return json.loads(j.get("FollowScore") or "[]")
+    return r.json().get("data") or []
 
 
-def _true_innings(raw: float) -> float:
-    """CPBL/NPB innings-pitched fields use baseball notation where the
-    fractional digit is OUTS (thirds), e.g. 6.1 = 6 and 1/3 innings, not
-    6.1 decimal innings."""
-    whole = int(raw)
-    outs = round((raw - whole) * 10)  # .0/.1/.2 -> 0/1/2 outs
-    return whole + outs / 3.0
+def build_starter_lookup() -> dict:
+    """(date, team_name) -> starting pitcher name, from the schedule data
+    fetch_cpbl.py already wrote (its h_pitcher/v_pitcher come from rebas's
+    scheduled_SP, i.e. the actual/probable starter)."""
+    path = DATA_DIR / "cpbl_data.json"
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        d = json.load(f)
+    lookup = {}
+    for row in d.get("history", []) + d.get("upcoming", []):
+        if row.get("h_pitcher"):
+            lookup[(row["date"], row["h"])] = row["h_pitcher"]
+        if row.get("v_pitcher"):
+            lookup[(row["date"], row["v"])] = row["v_pitcher"]
+    return lookup
 
 
-def summarize_pitcher(log: list):
-    ip = sum(_true_innings(g["InningPitchedCnt"]) for g in log)
-    er = sum(g["EarnedRunCnt"] for g in log)
-    h = sum(g["HittingCnt"] for g in log)
-    bb = sum(g["BasesONBallsCnt"] for g in log)
-    hbp = sum(g["HitBYPitchCnt"] for g in log)
-    hr = sum(g["HomeRunCnt"] for g in log)
-    k = sum(g["StrikeOutCnt"] for g in log)
+def _hand_from_logs(games: list, hand_key: str) -> str:
+    """hand_key: 'p_hand' for pitchers, 'b_hand' for batters. Pulled from
+    the first plate appearance of the first game with any PA_list data —
+    rebas doesn't need a separate player-detail call for this since every
+    PA event already carries both hands."""
+    for g in games:
+        pa_list = g.get("PA_list") or []
+        if pa_list:
+            code = pa_list[0].get(hand_key)
+            if code == "L":
+                return "左投" if hand_key == "p_hand" else "左打"
+            if code == "R":
+                return "右投" if hand_key == "p_hand" else "右打"
+    return ""
+
+
+def summarize_pitcher(games: list) -> dict | None:
+    if not games:
+        return None
+    ip = sum(g["pitching"]["IPOut"] for g in games) / 3.0
     if ip <= 0:
         return None
+    er = sum(g["pitching"]["ER"] for g in games)
+    h = sum(g["pitching"]["H"] for g in games)
+    bb = sum(g["pitching"]["BB"] for g in games)
+    # rebas's per-game pitching summary doesn't carry HBP (unlike the batting
+    # side, which does) — treated as 0 rather than fetching+parsing the full
+    # pitch-by-pitch PA_list just for this one field. Slightly understates
+    # fip_raw's (BB+HBP) term.
+    hbp = 0
+    hr = sum(g["pitching"]["HR"] for g in games)
+    k = sum(g["pitching"]["SO"] for g in games)
     era = er * 9 / ip
     whip = (h + bb) / ip
     k9 = k * 9 / ip
@@ -106,18 +138,24 @@ def summarize_pitcher(log: list):
     return {
         "ip": round(ip, 1), "er": er, "h": h, "bb": bb, "hbp": hbp, "hr": hr, "k": k,
         "era": round(era, 2), "whip": round(whip, 2), "k9": round(k9, 2), "bb9": round(bb9, 2),
-        "fip_raw": round(fip_raw, 2),  # league FIP constant added later in model
+        "fip_raw": round(fip_raw, 2),
     }
 
 
-def summarize_batter(log: list):
-    ab = sum(g["HitCnt"] for g in log)  # field name is misleading: this is at-bats
-    h = sum(g["HittingCnt"] for g in log)
-    bb = sum(g["BasesONBallsCnt"] for g in log)
-    hbp = sum(g["HitBYPitchCnt"] for g in log)
-    sf = sum(g["SacrificeFlyCnt"] for g in log)
-    tb = sum(g["TotalBases"] for g in log)
-    pa = sum(g["PlateAppearances"] for g in log)
+def summarize_batter(games: list) -> dict | None:
+    if not games:
+        return None
+    ab = sum(g["batting"]["AB"] for g in games)
+    h = sum(g["batting"]["H"] for g in games)
+    bb = sum(g["batting"]["BB"] for g in games)
+    hbp = sum(g["batting"]["HBP"] for g in games)
+    sf = sum(g["batting"]["SF"] for g in games)
+    pa = sum(g["batting"]["PA"] for g in games)
+    doubles = sum(g["batting"]["Double"] for g in games)
+    triples = sum(g["batting"]["Triple"] for g in games)
+    hr = sum(g["batting"]["HR"] for g in games)
+    singles = h - doubles - triples - hr
+    tb = singles + 2 * doubles + 3 * triples + 4 * hr
     obp_den = ab + bb + hbp + sf
     if ab <= 0 or obp_den <= 0:
         return None
@@ -137,52 +175,64 @@ def main():
     session = requests.Session()
     session.headers.update(HEADERS)
 
+    season_uniqid, year = find_current_season(session)
+    print(f"season: {season_uniqid} ({year})")
+    team_names = fetch_teams(session, season_uniqid)
+    starter_lookup = build_starter_lookup()
+
     all_pitchers = {}
-    all_batters = {}
+    pitcher_roster = fetch_leaders(session, season_uniqid, "pitcher")
+    print(f"pitcher roster: {len(pitcher_roster)}")
+    for entry in pitcher_roster:
+        p = entry["player"]
+        uniqid, name, team_uniqid = p["uniqid"], p["name"], p["team_uniqid"]
+        team = team_names.get(team_uniqid, "")
+        games = fetch_player_logs(session, uniqid, season_uniqid)
+        time.sleep(REQUEST_PAUSE)
+        # A two-way/emergency appearance can log a game for this player with
+        # only a "batting" entry (e.g. pinch-hit) and no "pitching" line —
+        # irrelevant to pitcher stats, so drop it here.
+        games = [g for g in games if "pitching" in g]
+        if not games:
+            continue
+        games.sort(key=lambda g: g["date"])
+        for g in games:
+            g["_is_start"] = starter_lookup.get((g["date"], team)) == name
 
-    for club_no, team_name in TEAMS.items():
-        pitchers, batters = fetch_roster(session, club_no)
-        print(f"{team_name}: {len(pitchers)} pitchers, {len(batters)} batters")
-
-        for p in pitchers:
-            acnt = p["acnt"]
-            referer = f"{BASE}/team/follow?Acnt={acnt}"
-            token = get_token(session, referer)
-            log = fetch_follow_score(session, token, referer, acnt, "投手")
-            hand = fetch_hand(session, acnt)
-            season = summarize_pitcher(log)
-            relief_log = [g for g in log if g.get("RoleType") != "先發"]
-            relief_season = summarize_pitcher(relief_log) if relief_log else None
-            starts = sorted(
-                [g for g in log if g.get("RoleType") == "先發"],
-                key=lambda g: g["GameDate"], reverse=True,
-            )[:5]
-            last5 = summarize_pitcher(starts) if starts else None
-            last7d_relief = [
-                {
-                    "date": g["GameDate"][:10], "role": g.get("RoleType", ""),
-                    "ip": round(_true_innings(g["InningPitchedCnt"]), 2), "pitches": g.get("PitchCnt", 0),
-                }
-                for g in log if g["GameDate"][:10] >= cutoff7
-            ]
-            all_pitchers[p["name"]] = {
-                "acnt": acnt, "team": team_name, "hand": hand,
-                "season": season, "relief_season": relief_season, "last5": last5, "last7d": last7d_relief,
-                "recent30_starts": len([g for g in log if g["GameDate"][:10] >= cutoff30 and g.get("RoleType") == "先發"]),
+        hand = _hand_from_logs(games, "p_hand")
+        season = summarize_pitcher(games)
+        start_games = [g for g in games if g["_is_start"]]
+        relief_games = [g for g in games if not g["_is_start"]]
+        relief_season = summarize_pitcher(relief_games) if relief_games else None
+        last5 = summarize_pitcher(sorted(start_games, key=lambda g: g["date"], reverse=True)[:5]) if start_games else None
+        last7d_relief = [
+            {
+                "date": g["date"], "role": "後援",
+                "ip": round(g["pitching"]["IPOut"] / 3.0, 2), "pitches": g["pitching"].get("NP", 0),
             }
-            time.sleep(0.15)
+            for g in relief_games if g["date"] >= cutoff7
+        ]
+        all_pitchers[name] = {
+            "acnt": uniqid, "team": team, "hand": hand,
+            "season": season, "relief_season": relief_season, "last5": last5, "last7d": last7d_relief,
+            "recent30_starts": len([g for g in start_games if g["date"] >= cutoff30]),
+        }
 
-        for b in batters:
-            acnt = b["acnt"]
-            referer = f"{BASE}/team/follow?Acnt={acnt}"
-            token = get_token(session, referer)
-            log = fetch_follow_score(session, token, referer, acnt, "野手")
-            season = summarize_batter(log)
-            if season:
-                all_batters[b["name"]] = {"acnt": acnt, "team": team_name, "pos": b["pos"], "season": season}
-            time.sleep(0.15)
-
-        print(f"  done {team_name}")
+    all_batters = {}
+    batter_roster = fetch_leaders(session, season_uniqid, "batter")
+    print(f"batter roster: {len(batter_roster)}")
+    for entry in batter_roster:
+        p = entry["player"]
+        uniqid, name, team_uniqid = p["uniqid"], p["name"], p["team_uniqid"]
+        team = team_names.get(team_uniqid, "")
+        games = fetch_player_logs(session, uniqid, season_uniqid)
+        time.sleep(REQUEST_PAUSE)
+        games = [g for g in games if "batting" in g]
+        if not games:
+            continue
+        season = summarize_batter(games)
+        if season:
+            all_batters[name] = {"acnt": uniqid, "team": team, "pos": "", "season": season}
 
     DATA_DIR.mkdir(exist_ok=True)
     with open(DATA_DIR / "cpbl_pitchers.json", "w", encoding="utf-8") as f:
