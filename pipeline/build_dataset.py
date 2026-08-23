@@ -57,6 +57,9 @@ def forward_rows() -> list[dict]:
                 "actual_home_runs": r["actual_home_runs"], "actual_away_runs": r["actual_away_runs"],
                 "is_backfilled": False,
                 "model_version_at_lock": p.get("model_version"),
+                # absent on predictions locked before this field existed —
+                # never backfilled onto those, they're immutable once locked
+                "feature_spec_version": p.get("feature_spec_version"),
             })
     return rows
 

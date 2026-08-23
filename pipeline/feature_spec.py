@@ -21,6 +21,15 @@ from model import compute_elo, compute_poisson_ratings  # noqa: E402
 from context import build_context_features, build_vs_hand_splits, league_fip_constant, league_avg_bullpen_ip_7d  # noqa: E402
 from generate_site import load_league_games, load_players, load_odds, TEAM_ALIAS  # noqa: E402
 
+# Bump this any time FEATURE_KEYS changes (add/remove/reorder a key, or
+# change what an existing key means) and record the new value here — it's
+# stored on every prediction/training row going forward (see
+# lock_predictions.py, backfill_historical.py, build_dataset.py) so a future
+# schema change is traceable to exactly which rows used which feature
+# layout. Rows locked before this existed simply have no value for it
+# (never backfilled onto already-locked rows — those are immutable).
+FEATURE_SPEC_VERSION = "v1"
+
 # Fixed order — train_model.py, backfill_historical.py, and lock_predictions.py
 # must all use this exact list so a saved model's coefficients always line
 # up with the right column.
@@ -151,6 +160,7 @@ def build_feature_vector(home: str, away: str, home_starter: str | None, away_st
 
     return {
         "features": vector,
+        "feature_spec_version": FEATURE_SPEC_VERSION,
         "context_notes": feats["context"],
         "elo_home_win_pct": feats["elo_home_win_pct"],
         "poisson_home_win_pct": feats["poisson_home_win_pct"],

@@ -67,6 +67,7 @@ def predict_with_model(model_entry: dict, home: str, away: str, home_starter, aw
         "confidence_label": confidence_label,
         "context_notes": fv["context_notes"],
         "feature_vector": fv["features"],
+        "feature_spec_version": fv["feature_spec_version"],
     }
 
 

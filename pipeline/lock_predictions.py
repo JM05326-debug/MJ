@@ -164,6 +164,7 @@ def lock_league(league: str, now_utc: datetime) -> int:
             "ev": ev,
             "context_notes": result["context_notes"],
             "feature_vector": result["feature_vector"],  # frozen verbatim for training later
+            "feature_spec_version": result["feature_spec_version"],
         }
         _append_jsonl(log_path, record)
         locked_ids.add(gid)

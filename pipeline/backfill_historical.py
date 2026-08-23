@@ -36,7 +36,7 @@ for p in (SCRIPTS_DIR, PIPELINE_DIR):
 import _console  # noqa: F401,E402
 from model import compute_elo, compute_poisson_ratings, _parse_date  # noqa: E402
 from context import build_context_features  # noqa: E402
-from feature_spec import vector_from_feats  # noqa: E402
+from feature_spec import vector_from_feats, FEATURE_SPEC_VERSION  # noqa: E402
 from generate_site import load_league_games  # noqa: E402
 from game_id import game_id as make_game_id  # noqa: E402
 
@@ -84,6 +84,7 @@ def backfill_league(league: str) -> list[dict]:
                     "label_home_win": g["hs"] > g["vs"],
                     "actual_home_runs": g["hs"], "actual_away_runs": g["vs"],
                     "is_backfilled": True,
+                    "feature_spec_version": FEATURE_SPEC_VERSION,
                 })
 
         i = j
