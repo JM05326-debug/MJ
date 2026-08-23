@@ -60,6 +60,10 @@ def forward_rows() -> list[dict]:
                 # absent on predictions locked before this field existed —
                 # never backfilled onto those, they're immutable once locked
                 "feature_spec_version": p.get("feature_spec_version"),
+                # market odds as captured at lock time (CPBL-only, often
+                # None) — carried through so validate_promote.py can compute
+                # each candidate model's own ROI over the same eval slice
+                "market_odds": p.get("market_odds"),
             })
     return rows
 

@@ -19,6 +19,14 @@ if str(SCRIPTS_DIR) not in sys.path:
 from context import contextual_predict_game  # noqa: E402
 from feature_spec import FEATURE_KEYS, LeagueContext, build_feature_vector  # noqa: E402
 
+# Human-readable label for a registry entry's `type` — model_version alone
+# (e.g. "v0002_logreg_2026wk34") identifies the exact artifact but doesn't
+# say in plain words what kind of model it is.
+MODEL_TYPE_NAMES = {
+    "deterministic": "Elo + Poisson Baseline",
+    "sklearn_logreg": "Logistic Regression",
+}
+
 
 def predict_with_model(model_entry: dict, home: str, away: str, home_starter, away_starter,
                         ctx: LeagueContext) -> dict:
@@ -58,6 +66,7 @@ def predict_with_model(model_entry: dict, home: str, away: str, home_starter, aw
 
     return {
         "model_version": model_entry["version"],
+        "model_name": MODEL_TYPE_NAMES.get(model_entry["type"], model_entry["type"]),
         "home_win_pct": round(home_win_pct, 1),
         "away_win_pct": round(100 - home_win_pct, 1),
         "predicted_home_runs": round(home_runs, 2),

@@ -27,8 +27,8 @@ for p in (SCRIPTS_DIR, PIPELINE_DIR):
 
 import _console  # noqa: F401,E402
 from eval_split import determine_eval_window  # noqa: E402
-from eval_metrics import compute_metrics, is_degenerate  # noqa: E402
-from predictor import predict_home_win_prob_from_vector  # noqa: E402
+from eval_metrics import compute_metrics, compute_roi, is_degenerate  # noqa: E402
+from predictor import predict_home_win_prob_from_vector, MODEL_TYPE_NAMES  # noqa: E402
 import registry as registry_mod  # noqa: E402
 
 DATASET_DIR = ROOT / "dataset"
@@ -95,8 +95,11 @@ def main():
     champion_probs = [predict_home_win_prob_from_vector(champion_entry, r["features"]) for r in eval_rows]
     challenger_probs = [predict_home_win_prob_from_vector(challenger_entry, r["features"]) for r in eval_rows]
 
+    market_odds = [r.get("market_odds") for r in eval_rows]
     champion_metrics = compute_metrics(y_true, champion_probs)
     challenger_metrics = compute_metrics(y_true, challenger_probs)
+    champion_metrics["roi"] = compute_roi(y_true, champion_probs, market_odds)
+    challenger_metrics["roi"] = compute_roi(y_true, challenger_probs, market_odds)
     print(f"champion  ({champion_entry['version']}): {champion_metrics}")
     print(f"challenger (staged): {challenger_metrics}")
 
@@ -111,6 +114,7 @@ def main():
     entry = {
         "version": version,
         "type": "sklearn_logreg",
+        "model_name": MODEL_TYPE_NAMES["sklearn_logreg"],
         "artifact_path": (version_dir / "model.joblib").relative_to(ROOT).as_posix(),
         "trained_at": stage_meta["trained_at"],
         "training_row_count": stage_meta["training_row_count"],

@@ -53,6 +53,7 @@ def ensure_baseline_registered(registry: dict) -> dict:
         registry["models"].append({
             "version": BASELINE_VERSION,
             "type": "deterministic",
+            "model_name": "Elo + Poisson Baseline",
             "artifact_path": None,
             "trained_at": None,
             "training_row_count": None,

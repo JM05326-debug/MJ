@@ -1,5 +1,5 @@
 {
-  "last_run_utc": "2026-08-19T16:31:19.988676Z",
-  "outcome": "升級成功",
-  "detail": "v0002_logreg_2026wk34 log_loss 0.6868 < 0.7002"
+  "last_run_utc": "2026-08-23T03:33:08.574359Z",
+  "outcome": "維持現有模型",
+  "detail": "log_loss 0.6866 did not beat champion 0.6866 by required margin 0.005"
 }

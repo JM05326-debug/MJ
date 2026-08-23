@@ -153,6 +153,7 @@ def lock_league(league: str, now_utc: datetime) -> int:
             "first_pitch_source": source,
             "locked_at_utc": now_utc.isoformat().replace("+00:00", "Z"),
             "model_version": production["version"],
+            "model_name": result["model_name"],
             "home_win_pct": result["home_win_pct"],
             "away_win_pct": result["away_win_pct"],
             "predicted_home_runs": result["predicted_home_runs"],
