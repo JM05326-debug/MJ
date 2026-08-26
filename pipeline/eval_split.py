@@ -44,3 +44,33 @@ def determine_eval_window(rows: list[dict]) -> tuple[list[dict], list[dict], dic
         "n_forward_available": len(forward_rows),
     }
     return train_rows, eval_rows, meta
+
+
+TEST_FRACTION = 0.30  # of eval_rows, carved off as the most-recent slice
+MIN_TEST_GAMES = 20   # below this the test holdout isn't worth reporting on its own
+
+
+def split_validation_test(eval_rows: list[dict]) -> tuple[list[dict], list[dict], dict]:
+    """Further splits determine_eval_window()'s eval_rows (already sorted by
+    date) into (validation_rows, test_rows) — validation is what
+    validate_promote.py actually gates the promotion decision on, same as
+    before this existed; test is the most-recent slice, held out from every
+    promotion decision (not just this week's) so it stays a clean,
+    never-touched-by-any-decision holdout for periodic honest reporting.
+    Without this, re-evaluating champion-vs-challenger on the same rolling
+    "recent window" every week is a mild multiple-comparisons risk — a model
+    that happened to look good on this week's eval slice gets promoted,
+    and next week's slice overlaps heavily with the one that approved it.
+    A permanently-quarantined test tail doesn't fix that by itself, but it
+    at least gives one number nothing was ever selected to look good on."""
+    n_test = round(len(eval_rows) * TEST_FRACTION)
+    if n_test < MIN_TEST_GAMES or len(eval_rows) - n_test < MIN_TEST_GAMES:
+        return eval_rows, [], {"test_held_out": False, "reason": "eval_rows too small to carve out a test slice"}
+    validation_rows = eval_rows[:-n_test]
+    test_rows = eval_rows[-n_test:]
+    meta = {
+        "test_held_out": True,
+        "validation": {"n": len(validation_rows), "start": validation_rows[0]["date"], "end": validation_rows[-1]["date"]},
+        "test": {"n": len(test_rows), "start": test_rows[0]["date"], "end": test_rows[-1]["date"]},
+    }
+    return validation_rows, test_rows, meta

@@ -44,6 +44,7 @@
 
   .freshness-row { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.7rem; color: var(--text-muted); margin: 10px 0 0; }
   .freshness-row .stale { color: var(--warn); }
+  .forward-progress { font-size: 0.7rem; color: var(--text-muted); margin: 6px 0 0; }
 
   .tabs { display: flex; gap: 8px; margin: 18px 0 14px; border-bottom: 1px solid var(--gridline); }
   .tab-btn { appearance: none; border: none; background: none; cursor: pointer; padding: 9px 4px; font-size: 0.95rem; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid transparent; margin-right: 18px; }
@@ -101,6 +102,7 @@
   </header>
 
   <div class="freshness-row" id="freshnessRow"></div>
+  <p class="forward-progress" id="forwardProgress"></p>
 
   <div class="tabs">
     <button class="tab-btn active" data-league="cpbl">CPBL</button>
@@ -157,6 +159,12 @@ Object.entries(DATA.freshness).forEach(([key, iso]) => {
   span.textContent = `${freshnessLabels[key] || key}: ${fmtDT(iso)}${stale ? ' ⚠' : ''}`;
   freshnessRow.appendChild(span);
 });
+
+const fp = DATA.forward_data_progress;
+if (fp) {
+  document.getElementById('forwardProgress').textContent =
+    `正式上線累積場次：${fp.n_forward_resolved} / ${fp.milestone}（${fp.pct_to_milestone}%）— 先發/牛棚/左右對戰 feature 唯一能提升覆蓋率的來源，達標後才值得重跑一次 feature ablation`;
+}
 
 function confidenceStars(score) {
   // Mirrors scripts/context.py's CONFIDENCE_BANDS thresholds (70/55/40/25)

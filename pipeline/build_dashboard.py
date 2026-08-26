@@ -143,6 +143,22 @@ def _roi(resolved: list[dict]) -> dict | None:
     return {"n_games": n, "n_bets": int(staked), "roi_pct": round(profit / staked * 100, 1)}
 
 
+FORWARD_DATA_MILESTONE = 300  # see model diagnostic report: pitcher/bullpen/hand features can
+                              # only ever gain real (non-imputed) coverage from forward-resolved
+                              # rows (backfilled history structurally can't carry them) — this
+                              # tracks how close we are to a sample worth re-running the feature
+                              # ablation test on, not a target for "more historical data".
+
+
+def _forward_data_progress(all_joined: list[dict]) -> dict:
+    n_resolved = sum(1 for g in all_joined if g.get("result") and g["result"]["status"] == "final")
+    return {
+        "n_forward_resolved": n_resolved,
+        "milestone": FORWARD_DATA_MILESTONE,
+        "pct_to_milestone": round(min(100.0, n_resolved / FORWARD_DATA_MILESTONE * 100), 1),
+    }
+
+
 def _load_training_status() -> dict:
     if TRAINING_STATUS_PATH.exists():
         with open(TRAINING_STATUS_PATH, encoding="utf-8") as f:
@@ -156,8 +172,10 @@ def build():
     reg = registry_mod.ensure_baseline_registered(reg)
 
     leagues = {}
+    all_joined = []
     for league, label in (("cpbl", "CPBL 中華職棒"), ("npb", "NPB 日本職棒")):
         joined = _load_league(league)
+        all_joined.extend(joined)
         resolved = _recent_resolved(joined)
         leagues[league] = {
             "name": label,
@@ -173,6 +191,7 @@ def build():
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "leagues": leagues,
         "registry": reg,
+        "forward_data_progress": _forward_data_progress(all_joined),
         "training_status": _load_training_status(),
         "freshness": {
             "cpbl_data": _freshness("cpbl_data.json"),

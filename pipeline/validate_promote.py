@@ -26,7 +26,7 @@ for p in (SCRIPTS_DIR, PIPELINE_DIR):
         sys.path.insert(0, str(p))
 
 import _console  # noqa: F401,E402
-from eval_split import determine_eval_window  # noqa: E402
+from eval_split import determine_eval_window, split_validation_test  # noqa: E402
 from eval_metrics import compute_metrics, compute_roi, is_degenerate  # noqa: E402
 from predictor import predict_home_win_prob_from_vector, MODEL_TYPE_NAMES  # noqa: E402
 import registry as registry_mod  # noqa: E402
@@ -81,9 +81,16 @@ def main():
     rows.sort(key=lambda r: r["date"])
     _, eval_rows, eval_meta = determine_eval_window(rows)
 
-    if len(eval_rows) < MIN_EVAL_FOR_PROMOTION:
-        print(f"eval window only has {len(eval_rows)} games (< {MIN_EVAL_FOR_PROMOTION}) — staying on champion")
-        _write_status("跳過：驗證樣本不足", f"驗證集僅 {len(eval_rows)} 場（需要至少 {MIN_EVAL_FOR_PROMOTION} 場）")
+    # eval_rows splits further into validation (what actually gates
+    # promotion, same role eval_rows played before this split existed) and
+    # test (the most-recent slice, held out from every promotion decision —
+    # never just this week's — so it stays a clean holdout nothing was ever
+    # selected to look good on; see eval_split.split_validation_test).
+    validation_rows, test_rows, split_meta = split_validation_test(eval_rows)
+
+    if len(validation_rows) < MIN_EVAL_FOR_PROMOTION:
+        print(f"validation window only has {len(validation_rows)} games (< {MIN_EVAL_FOR_PROMOTION}) — staying on champion")
+        _write_status("跳過：驗證樣本不足", f"驗證集僅 {len(validation_rows)} 場（需要至少 {MIN_EVAL_FOR_PROMOTION} 場）")
         return
 
     reg = registry_mod.load_registry()
@@ -91,17 +98,33 @@ def main():
     champion_entry = registry_mod.get_production(reg)
     challenger_entry = {"type": "sklearn_logreg", "artifact_path": model_path.relative_to(ROOT).as_posix()}
 
-    y_true = [bool(r["label_home_win"]) for r in eval_rows]
-    champion_probs = [predict_home_win_prob_from_vector(champion_entry, r["features"]) for r in eval_rows]
-    challenger_probs = [predict_home_win_prob_from_vector(challenger_entry, r["features"]) for r in eval_rows]
+    y_true = [bool(r["label_home_win"]) for r in validation_rows]
+    champion_probs = [predict_home_win_prob_from_vector(champion_entry, r["features"]) for r in validation_rows]
+    challenger_probs = [predict_home_win_prob_from_vector(challenger_entry, r["features"]) for r in validation_rows]
 
-    market_odds = [r.get("market_odds") for r in eval_rows]
+    market_odds = [r.get("market_odds") for r in validation_rows]
     champion_metrics = compute_metrics(y_true, champion_probs)
     challenger_metrics = compute_metrics(y_true, challenger_probs)
     champion_metrics["roi"] = compute_roi(y_true, champion_probs, market_odds)
     challenger_metrics["roi"] = compute_roi(y_true, challenger_probs, market_odds)
     print(f"champion  ({champion_entry['version']}): {champion_metrics}")
     print(f"challenger (staged): {challenger_metrics}")
+
+    # Test holdout: reporting only, never gates anything below. Skipped
+    # gracefully (empty dict) when there isn't enough data yet to carve one
+    # out — see split_validation_test's own MIN_TEST_GAMES threshold.
+    test_metrics = None
+    if test_rows:
+        y_test = [bool(r["label_home_win"]) for r in test_rows]
+        challenger_test_probs = [predict_home_win_prob_from_vector(challenger_entry, r["features"]) for r in test_rows]
+        champion_test_probs = [predict_home_win_prob_from_vector(champion_entry, r["features"]) for r in test_rows]
+        test_odds = [r.get("market_odds") for r in test_rows]
+        challenger_test_metrics = compute_metrics(y_test, challenger_test_probs)
+        champion_test_metrics = compute_metrics(y_test, champion_test_probs)
+        challenger_test_metrics["roi"] = compute_roi(y_test, challenger_test_probs, test_odds)
+        champion_test_metrics["roi"] = compute_roi(y_test, champion_test_probs, test_odds)
+        test_metrics = {"champion": champion_test_metrics, "challenger": challenger_test_metrics}
+        print(f"test holdout (never used for any promotion decision) — champion: {champion_test_metrics['log_loss']}, challenger: {challenger_test_metrics['log_loss']}")
 
     version = _next_version(reg)
     version_dir = MODELS_DIR / version
@@ -120,7 +143,9 @@ def main():
         "training_row_count": stage_meta["training_row_count"],
         "feature_list": stage_meta["feature_list"],
         "eval_window": eval_meta,
+        "validation_test_split": split_meta,
         "metrics": challenger_metrics,
+        "metrics_test_holdout": test_metrics,
         "status": None, "promoted_at": None, "rejected_reason": None,
     }
 
