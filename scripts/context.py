@@ -124,6 +124,72 @@ def bullpen_quality_factor(team: str, pitchers: dict, relief_field: str, league_
     return 1 + blend * (raw - 1)
 
 
+def _norm_name(s: str) -> str:
+    """Strip the roster '*' marker, the full-width space season tables put
+    between family and given name, and any ASCII spaces — so the many name
+    forms for one pitcher ('*髙橋　宏斗', '髙橋宏斗', '髙橋宏', 'Howard ') can
+    be compared on equal footing."""
+    return (s or "").lstrip("*").replace("　", "").replace(" ", "").strip()
+
+
+def resolve_pitcher_name(raw: str | None, pitchers: dict | None) -> str | None:
+    """Map a probable-starter name (playsport.cc and each league schedule
+    abbreviate the same pitcher differently) to the matching key in
+    `pitchers`. Returns the canonical key, or None when it can't be matched
+    *unambiguously* — the caller then treats the starter as unknown rather
+    than pinning the wrong pitcher's stat line onto the prediction (NPB has
+    several same-surname pitchers, e.g. 髙橋宏斗 / 髙橋光成 / 髙橋快秀)."""
+    if not raw:
+        return None
+    if not pitchers:
+        return raw
+    if raw in pitchers:
+        return raw
+    target = _norm_name(raw)
+    if not target:
+        return None
+    for k, v in pitchers.items():
+        if _norm_name(k) == target or _norm_name(v.get("full_name", "")) == target:
+            return k
+    # a bare family name (npb.jp schedules print only that) — take it only
+    # if exactly one active pitcher has that surname (declines 村上, which
+    # is both 村上頌樹 and 村上泰斗)
+    by_surname = [k for k, v in pitchers.items() if _norm_name(v.get("surname", "")) == target]
+    if len(by_surname) == 1:
+        return by_surname[0]
+    # one name a prefix of the other ('髙橋宏' vs roster '髙橋宏斗') — only
+    # when unambiguous, and never letting a bare 2-char surname swallow a
+    # longer name (that's how you pin 髙橋宏斗's start on 髙橋快秀's stats).
+    cands = set()
+    for k, v in pitchers.items():
+        for cand in (_norm_name(k), _norm_name(v.get("full_name", ""))):
+            if not cand or cand == target:
+                continue
+            shorter = min(cand, target, key=len)
+            if len(shorter) >= 3 and (cand.startswith(target) or target.startswith(cand)):
+                cands.add(k)
+    return next(iter(cands)) if len(cands) == 1 else None
+
+
+def pick_starter(primary: str | None, secondary: str | None, pitchers: dict | None) -> str | None:
+    """Choose which probable-starter name to use, given two feeds for the
+    same game. `primary` is playsport.cc (玩運彩) — the preferred source, and
+    usually the earliest to post — and `secondary` is the league's own feed
+    (rebas for CPBL, npb.jp for NPB).
+
+    Prefer `primary`, unless it can't be resolved to a known pitcher while
+    `secondary` can — then `secondary` keeps the starter-quality factor
+    (matters for foreign pitchers, where playsport uses romaji 'Howard' and
+    npb.jp uses katakana 'ハワード' that matches the roster). Falls back to
+    whichever one is non-empty when neither resolves — nothing to lose."""
+    primary = (primary or "").strip() or None
+    secondary = (secondary or "").strip() or None
+    if primary and not resolve_pitcher_name(primary, pitchers) \
+            and resolve_pitcher_name(secondary, pitchers):
+        return secondary
+    return primary or secondary
+
+
 def hand_of(pitcher_name: str, hand_map: dict) -> str | None:
     raw = hand_map.get(pitcher_name, "")
     if raw.startswith("左投"):
@@ -203,6 +269,13 @@ def build_context_features(
     off_h_ctx, off_v_ctx = off_h, off_v
 
     if pitchers is not None:
+        # Normalize each probable starter to its canonical key in `pitchers`
+        # before any lookup — playsport.cc and the league schedules each
+        # abbreviate names differently and NPB stat lines are keyed by full
+        # name. Unresolved names stay as-is (factor just comes back None).
+        home_starter = resolve_pitcher_name(home_starter, pitchers) or home_starter
+        away_starter = resolve_pitcher_name(away_starter, pitchers) or away_starter
+
         # home pitching (starter + bullpen) shapes the AWAY team's expected runs
         home_pen_factor = bullpen_quality_factor(home, pitchers, relief_field, league_era) * \
             bullpen_fatigue_factor(home, pitchers, league_avg_ip7)
@@ -286,6 +359,12 @@ def contextual_predict_game(
     notes = feats["context"]
 
     blended_home = (elo_p_home + poi_p_home) / 2.0
+
+    # feats already carries the starter names resolved to canonical keys —
+    # use those so the confidence "known starter" check and the returned
+    # display name agree with what actually drove the factors.
+    home_starter = feats["home_starter"] or home_starter
+    away_starter = feats["away_starter"] or away_starter
 
     conf_score, conf_label = confidence_rating(
         blended_home, elo_p_home, poi_p_home, notes,

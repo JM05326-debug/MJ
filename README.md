@@ -12,10 +12,14 @@
         │                                 │
         ▼                                 ▼
      CPBL 資料                         NPB 資料
-(賽程/球員數據/玩運彩賠率           (賽程/球員數據)
- 抓自野球革命 rebas.tw——
+(賽程/球員數據                     (賽程/球員數據
+ 抓自野球革命 rebas.tw——            抓自 npb.jp)
  官網 cpbl.com.tw 擋 GitHub
  Actions 的 IP，rebas.tw 不擋)
+        │                                 │
+   兩聯盟的「賽前先發投手 + 玩運彩讓分/大小分賠率」
+   都抓自玩運彩 playsport.cc（scripts/fetch_playsport_odds.py，
+   best-effort；先發以玩運彩為主、聯盟自家賽程為輔）
         │                                 │
         └────────────────┬────────────────┘
                           ▼
@@ -92,8 +96,9 @@ git push 認證用的是 GitHub CLI（`gh auth login` 時設定），存在 Wind
 pip install -r requirements.txt
 
 # 補齊資料
-python scripts/fetch_cpbl.py && python scripts/fetch_cpbl_players.py && python scripts/fetch_cpbl_odds.py
+python scripts/fetch_cpbl.py && python scripts/fetch_cpbl_players.py
 python scripts/fetch_npb.py && python scripts/fetch_npb_players.py
+python scripts/fetch_playsport_odds.py   # CPBL + NPB 先發投手 + 玩運彩賠率
 
 # 每日流程
 python pipeline/lock_predictions.py
@@ -114,9 +119,10 @@ python pipeline/backfill_historical.py
 ## 已知限制
 
 - **CPBL 資料依賴 rebas.tw 這個第三方網站**：不是 CPBL 官方 API，若它改版、關站，或哪天也開始擋 GitHub Actions 的 IP，CPBL 資料就會斷——本機備援排程（見上）就是為了這種情況保留的
-- NPB 目前沒有賠率來源（`fetch_cpbl_odds.py` 只有 CPBL 玩運彩版本），ROI 指標只能算 CPBL 有賠率的場次
-- NPB 的牛棚/先發數據只能抓到近 25 天的滾動視窗（官網沒有球員逐場成績 API），CPBL 則有完整球季資料
-- 先發投手常常賽前幾小時才公布，鎖定時若還沒公布會顯示「先發未公布」，模型退化成純 Elo+Poisson（不會因此不預測）
+- NPB 賠率現在也抓自玩運彩（`fetch_playsport_odds.py`），但一樣只在賽前幾小時才開盤，開盤前鎖定的場次沒有 ROI 指標
+- NPB 的牛棚逐場工作量只能抓到近 25 天的滾動視窗（官網沒有球員逐場成績 API），球季累計投打數據則是完整的；CPBL 兩者都完整
+- 先發投手名字有多種寫法（玩運彩寫全名「尾形崇斗」、npb.jp 賽程寫「尾形」或「髙橋宏」、球員數據表 key 是全名），`scripts/context.py` 的 `resolve_pitcher_name()` 負責把各種寫法對回球員數據表的 key，對不到的（同姓氏多人又只給姓、或洋將只有英文名）就當先發未知、不硬猜。NPB 球員數據表已改用全名當 key（`fetch_npb_players.py`），同姓氏的投手（髙橋宏斗／髙橋光成／髙橋快秀）不再互相蓋掉
+- 先發投手常常賽前幾小時才公布，鎖定時若還沒公布會顯示「先發未公布」（Dashboard 每張賽事卡片會列出客/主先發，看得出來這場有沒有抓到），模型退化成純 Elo+Poisson（不會因此不預測）
 - 歷史回填資料沒有先發投手/牛棚/對戰左右投特徵（技術上無法回溯），只有正向蒐集的資料才有完整特徵
 
 ## 舊版：本機手動網頁（仍保留）

@@ -11,7 +11,7 @@ from pathlib import Path
 from model import compute_elo, compute_poisson_ratings
 from context import (
     build_vs_hand_splits, contextual_predict_game, league_fip_constant,
-    league_avg_bullpen_ip_7d, team_bullpen_era,
+    league_avg_bullpen_ip_7d, pick_starter, resolve_pitcher_name, team_bullpen_era,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -145,8 +145,14 @@ def build_league(name: str, game_file: str, pitchers_file: str, batters_file: st
             continue
         seen.add(key)
         odds_entry = odds_map.get((g["date"], g["h"], g["v"]))
-        h_pitcher = g.get("h_pitcher") or (odds_entry.get("home_pitcher") if odds_entry else None) or None
-        v_pitcher = g.get("v_pitcher") or (odds_entry.get("away_pitcher") if odds_entry else None) or None
+        h_pitcher = pick_starter(
+            odds_entry.get("home_pitcher") if odds_entry else None, g.get("h_pitcher"), pitchers)
+        v_pitcher = pick_starter(
+            odds_entry.get("away_pitcher") if odds_entry else None, g.get("v_pitcher"), pitchers)
+        # canonicalize to the pitchers-dict key so the stat-card lookup below
+        # (and the displayed name) match what the model actually factored in
+        h_pitcher = resolve_pitcher_name(h_pitcher, pitchers) or h_pitcher
+        v_pitcher = resolve_pitcher_name(v_pitcher, pitchers) or v_pitcher
         pred = contextual_predict_game(
             g["h"], g["v"], elo_ratings, poisson,
             home_starter=h_pitcher, away_starter=v_pitcher,
@@ -203,7 +209,7 @@ def main():
     )
     npb = build_league(
         "NPB 日本職棒", "npb_data.json", "npb_pitchers.json", "npb_batters.json",
-        "relief_recent_window", today,
+        "relief_recent_window", today, odds_file="npb_odds.json",
     )
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 

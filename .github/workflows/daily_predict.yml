@@ -70,14 +70,14 @@ jobs:
       - name: Fetch CPBL player stats
         run: python scripts/fetch_cpbl_players.py
         continue-on-error: true
-      - name: Fetch CPBL odds (best-effort)
-        run: python scripts/fetch_cpbl_odds.py
-        continue-on-error: true
       - name: Fetch NPB schedule
         run: python scripts/fetch_npb.py
         continue-on-error: true
       - name: Fetch NPB player stats
         run: python scripts/fetch_npb_players.py
+        continue-on-error: true
+      - name: Fetch playsport odds + probable starters (CPBL & NPB, best-effort)
+        run: python scripts/fetch_playsport_odds.py
         continue-on-error: true
 
       # Locking is NOT best-effort in the same sense — a game_id, once

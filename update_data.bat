@@ -16,18 +16,18 @@ python fetch_cpbl_players.py
 if errorlevel 1 goto :error
 
 echo.
-echo [3/6] CPBL probable starters + market odds (best-effort, playsport.cc)...
-python fetch_cpbl_odds.py
-
-echo.
-echo [4/6] NPB schedule and results...
+echo [3/6] NPB schedule and results...
 python fetch_npb.py
 if errorlevel 1 goto :error
 
 echo.
-echo [5/6] NPB pitcher and batter stats...
+echo [4/6] NPB pitcher and batter stats...
 python fetch_npb_players.py
 if errorlevel 1 goto :error
+
+echo.
+echo [5/6] CPBL + NPB probable starters + market odds (best-effort, playsport.cc)...
+python fetch_playsport_odds.py
 
 echo.
 echo [6/6] Generating website...

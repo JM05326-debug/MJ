@@ -50,7 +50,7 @@ LEAGUES = {
                  odds_file="cpbl_odds.json"),
     "npb": dict(game_file="npb_data.json", pitchers_file="npb_pitchers.json",
                 batters_file="npb_batters.json", relief_field="relief_recent_window",
-                odds_file=None),
+                odds_file="npb_odds.json"),
 }
 
 

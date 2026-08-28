@@ -26,6 +26,7 @@ for p in (SCRIPTS_DIR, PIPELINE_DIR):
         sys.path.insert(0, str(p))
 
 import _console  # noqa: F401,E402
+from context import pick_starter, resolve_pitcher_name  # noqa: E402
 from feature_spec import LEAGUES, load_live_context  # noqa: E402
 from game_id import game_id as make_game_id  # noqa: E402
 from predictor import predict_with_model  # noqa: E402
@@ -117,13 +118,19 @@ def lock_league(league: str, now_utc: datetime) -> int:
             continue  # too far out — wait for a closer run so late-announced starters can still be caught
 
         home, away = game["h"], game["v"]
-        home_starter = game.get("h_pitcher") or None
-        away_starter = game.get("v_pitcher") or None
-
         odds_entry = ctx.odds_map.get((game["date"], home, away))
-        if odds_entry:
-            home_starter = home_starter or (odds_entry.get("home_pitcher") or None)
-            away_starter = away_starter or (odds_entry.get("away_pitcher") or None)
+
+        # Prefer playsport (玩運彩) for the probable starter, falling back to
+        # the league's own feed — see context.pick_starter for why it isn't
+        # an unconditional override.
+        odds_home_p = odds_entry.get("home_pitcher") if odds_entry else None
+        odds_away_p = odds_entry.get("away_pitcher") if odds_entry else None
+        home_starter = pick_starter(odds_home_p, game.get("h_pitcher"), ctx.pitchers)
+        away_starter = pick_starter(odds_away_p, game.get("v_pitcher"), ctx.pitchers)
+        # store the canonical roster name (what the pitcher factor actually
+        # keyed off), not whichever ragged feed form we happened to read
+        home_starter = resolve_pitcher_name(home_starter, ctx.pitchers) or home_starter
+        away_starter = resolve_pitcher_name(away_starter, ctx.pitchers) or away_starter
 
         result = predict_with_model(production, home, away, home_starter, away_starter, ctx)
 

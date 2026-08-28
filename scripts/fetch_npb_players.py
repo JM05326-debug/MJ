@@ -44,12 +44,23 @@ def _true_innings(text: str) -> float:
 
 
 def _surname_key(full_name: str) -> str:
-    """Season-stat tables print '*姓　名' (asterisk + full-width-space-
-    separated family/given name); box scores, schedules, and win/loss
-    pitcher credits all print just the family name. Normalize to that
-    shorter surname so records from every source join on the same key."""
+    """Just the family name. Box scores, schedules and win/loss pitcher
+    credits print only this, so it's what the recent-appearance scan is
+    keyed by — but it is NOT unique (several 髙橋 / 村上 / 伊藤 pitch in a
+    given season), so it's only used to *join* appearances, never as the
+    pitcher's own record key (see _fullname_key)."""
     name = full_name.lstrip("*").strip()
     return name.split("　")[0] if "　" in name else name
+
+
+def _fullname_key(full_name: str) -> str:
+    """The pitcher's own record key: the compact full name. Season/roster
+    tables print '*姓　名' (roster marker + full-width space); strip both so
+    the key is '髙橋宏斗' — the form npb.jp schedules and playsport.cc both
+    (mostly) use, and one that actually distinguishes same-surname pitchers.
+    scripts/context.resolve_pitcher_name maps the ragged real-world name
+    forms back onto this."""
+    return full_name.lstrip("*").replace("　", "").strip()
 
 
 def _cell_text(td) -> str:
@@ -249,8 +260,14 @@ def main():
 
         for p in pitching:
             full_name = p["name"]
-            name = _surname_key(full_name)
-            log = appearances.get(name, [])
+            surname = _surname_key(full_name)
+            name = _fullname_key(full_name)
+            # appearances come from box scores, which print only the surname;
+            # this join is therefore approximate when two same-surname
+            # pitchers are active, mostly affecting the (team-aggregated,
+            # so resilient) bullpen-workload numbers and the display-only
+            # last-5-starts line — never pitcher_factor, which reads season.
+            log = appearances.get(surname, [])
             starts = sorted([g for g in log if g["role"] == "先發"], key=lambda g: g["date"], reverse=True)[:5]
             last5 = None
             if starts:
@@ -267,8 +284,8 @@ def main():
                 if ip_r > 0:
                     relief_season = {"ip": round(ip_r, 1), "er": er_r, "era": round(er_r * 9 / ip_r, 2)}
             all_pitchers[name] = {
-                "full_name": full_name, "team": team_name, "hand": "",
-                "player_id": name_to_id.get(name, ""),
+                "full_name": full_name, "surname": surname, "team": team_name, "hand": "",
+                "player_id": name_to_id.get(surname, ""),
                 "season": {k: v for k, v in p.items() if k != "name"},
                 "relief_recent_window": relief_season,
                 "last5": last5, "last7d": last7d,
@@ -279,7 +296,11 @@ def main():
 
         time.sleep(0.2)
 
-    # hand lookup only for pitchers we could resolve to a player id (keeps this bounded & cheap)
+    # hand lookup only for pitchers we could resolve to a player id (keeps
+    # this bounded & cheap). The id comes from a surname-keyed box-score
+    # scan, so same-surname pitchers can pick up the wrong hand here — a
+    # known minor imprecision (NPB's vs-handedness split is empty anyway:
+    # finished games in npb_data carry no starter name to build it from).
     print("resolving throwing hand for pitchers with known IDs...")
     for name, info in all_pitchers.items():
         pid = info["player_id"]

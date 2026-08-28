@@ -24,11 +24,11 @@ echo [2/4] CPBL player stats...
 python scripts\fetch_cpbl_players.py
 if errorlevel 1 goto :error
 
-echo [3/4] CPBL odds (best-effort)...
-python scripts\fetch_cpbl_odds.py
+echo [3/4] playsport odds + probable starters (best-effort)...
+python scripts\fetch_playsport_odds.py
 
 echo [4/4] commit and push...
-git add data\cpbl_data.json data\cpbl_pitchers.json data\cpbl_batters.json data\cpbl_odds.json
+git add data\cpbl_data.json data\cpbl_pitchers.json data\cpbl_batters.json data\cpbl_odds.json data\npb_odds.json
 git diff --cached --quiet
 if errorlevel 1 (
     git commit -m "local CPBL update: %date% %time%"

@@ -65,6 +65,9 @@
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
   .game-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.84rem; }
   .game-card .matchup { color: var(--text-muted); font-size: 0.76rem; margin-bottom: 6px; }
+  .game-card .starters { font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.5; }
+  .game-card .starters .k { color: var(--text-muted); }
+  .game-card .starters .tbd { color: var(--warn); }
   .game-card .winner-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
   .game-card .winner-team { font-weight: 700; font-size: 1.02rem; }
   .game-card .winner-pct { font-weight: 700; font-size: 1.02rem; color: var(--series-home); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -202,8 +205,15 @@ function renderLeague(containerId, league) {
              ${(g.home_win_pct >= 50) === g.result.actual_home_win ? '預測正確' : '預測錯誤'}</span></div>`
           : `<div class="result"><span class="badge pending">已作廢</span></div>`)
       : `<div class="result"><span class="badge pending">尚未開打/無結果</span></div>`;
+    const starterCell = (name) => name
+      ? name
+      : '<span class="tbd">先發未公布</span>';
     return `<div class="game-card">
       <div class="matchup">${g.away}（客）@ ${g.home}（主）</div>
+      <div class="starters">
+        <span class="k">先發　客</span> ${starterCell(g.away_starter)}<br>
+        <span class="k">先發　主</span> ${starterCell(g.home_starter)}
+      </div>
       <div class="winner-line">
         <span class="winner-team">🏆 ${winner.team}${winner.isHome ? '（主）' : '（客）'}</span>
         <span class="winner-pct">${fmtPct(winner.pct)}</span>
