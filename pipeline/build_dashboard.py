@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +32,19 @@ TRAINING_STATUS_PATH = ROOT / "models" / "training_status.json"
 
 RECENT_WINDOW = 30
 ROI_MIN_SAMPLE = 20
+
+# Matches pipeline/lock_predictions.py's own constant. "Today's games" must
+# be judged in the league's own local calendar date, not the runner's — a
+# GitHub Actions runner's system clock is UTC, so a naive date.today() call
+# lags Taipei/Tokyo by up to 8-9h (during each local midnight-to-8am/9am
+# window it's still "yesterday" UTC), which would silently drop that day's
+# real games from "今日賽事" until UTC catches up. Bit for bit the same class
+# of bug lock_predictions.py already had to account for.
+LEAGUE_UTC_OFFSET_HOURS = {"cpbl": 8, "npb": 9}
+
+
+def _today_str_for_league(league: str, now_utc: datetime) -> str:
+    return (now_utc + timedelta(hours=LEAGUE_UTC_OFFSET_HOURS[league])).date().isoformat()
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -167,7 +180,7 @@ def _load_training_status() -> dict:
 
 
 def build():
-    today_str = date.today().isoformat()
+    now_utc = datetime.now(timezone.utc)
     reg = registry_mod.load_registry()
     reg = registry_mod.ensure_baseline_registered(reg)
 
@@ -177,6 +190,7 @@ def build():
         joined = _load_league(league)
         all_joined.extend(joined)
         resolved = _recent_resolved(joined)
+        today_str = _today_str_for_league(league, now_utc)
         leagues[league] = {
             "name": label,
             "today_games": _today_games(joined, today_str),
