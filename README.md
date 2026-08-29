@@ -39,7 +39,7 @@
                           ▼
                       比賽開始
                           ▼
-        雲端 GitHub Actions（每天 2 次 台北 00:00/06:00）
+        雲端 GitHub Actions（每天 3 次 台北 23:00/02:00/05:00）
                 自動取得真實結果
               pipeline/collect_results.py
                           ▼

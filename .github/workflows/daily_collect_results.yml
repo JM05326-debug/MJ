@@ -2,10 +2,17 @@ name: Daily collect results
 
 on:
   schedule:
-    # 16:00 UTC ~= 00:00 Taipei / 01:00 Tokyo — after games conclude
-    - cron: '0 16 * * *'
-    # 22:00 UTC — safety re-pass for extra-innings / late finishes
-    - cron: '0 22 * * *'
+    # 3x/day, every 3h through the night after games conclude. collect_results.py
+    # is idempotent (append-only, only ever adds a result for a still-pending
+    # prediction) and re-checks every pending prediction, not just today's, so
+    # extra passes only ever help — they catch extra-inning / suspended-then-
+    # resumed finishes and cover a slot GitHub's scheduler silently skips.
+    # 15:00 UTC ~= 23:00 Taipei / 00:00 Tokyo — first pass, right after games end
+    - cron: '0 15 * * *'
+    # 18:00 UTC ~= 02:00 Taipei / 03:00 Tokyo
+    - cron: '0 18 * * *'
+    # 21:00 UTC ~= 05:00 Taipei / 06:00 Tokyo — last pass for late finishes
+    - cron: '0 21 * * *'
   workflow_dispatch: {}
 
 permissions:
