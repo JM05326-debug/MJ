@@ -7,9 +7,11 @@ This is what makes requirement #3 (lock before first pitch, no post-start
 data can revise it) and requirement #8 (no leakage) structural rather than
 just a convention.
 
-Run this multiple times per day (see .github/workflows/daily_predict.yml)
-so late-announced starters still get picked up for games further out —
-each run only locks games crossing into its window for the first time.
+Run this multiple times per day (see .github/workflows/daily_predict.yml):
+a game isn't locked until both probable starters are known (or until
+FINAL_LOCK_HOURS before first pitch, whichever comes first), so a run that
+sees a game before its starters are announced deliberately leaves it for a
+later run.
 """
 from __future__ import annotations
 
@@ -34,13 +36,19 @@ import registry as registry_mod  # noqa: E402
 
 PREDICTIONS_DIR = ROOT / "predictions"
 SAFETY_BUFFER_MINUTES = 45
-# Only lock games happening soon — locking something weeks out would freeze
-# a prediction long before starters/bullpen-fatigue data could exist for it
-# (permanently, since a locked game_id is never re-predicted), and would
-# flood the log with low-information rows. Running 3x/day within this
-# window is what lets a later run pick up a starter announced after an
-# earlier run already looked at (but didn't yet lock) the same game.
+# Outer bound: never even consider a game further out than this (a locked
+# game_id is never re-predicted, so freezing one days early just guarantees
+# a low-information row).
 LOCK_WINDOW_HOURS = 36
+# Inner gate: a game inside the window is still HELD BACK until both probable
+# starters are known. Locking the moment a game entered a 36h window — hours
+# before either starter is announced — is why NPB/CPBL predictions used to
+# almost always run starter-less. The hold is released this many hours before
+# first pitch regardless, so a genuinely late or never-announced starter
+# can't block a game from being locked at all (it just locks on Elo+Poisson,
+# same as before). Given daily_predict.yml's ~6 runs/day, the release window
+# still contains 2-3 scheduled runs for even the earliest games.
+FINAL_LOCK_HOURS = 10
 
 # Conservative fallback first-pitch times (local league timezone) used only
 # when a game's own scheduled_first_pitch_utc couldn't be scraped — always
@@ -131,6 +139,14 @@ def lock_league(league: str, now_utc: datetime) -> int:
         # keyed off), not whichever ragged feed form we happened to read
         home_starter = resolve_pitcher_name(home_starter, ctx.pitchers) or home_starter
         away_starter = resolve_pitcher_name(away_starter, ctx.pitchers) or away_starter
+
+        starters_known = bool(home_starter) and bool(away_starter)
+        if not starters_known and first_pitch_utc - now_utc > timedelta(hours=FINAL_LOCK_HOURS):
+            # hold this game back for a later run — a starter may still be
+            # announced before we hit the FINAL_LOCK_HOURS deadline
+            print(f"[{league}] hold {gid}: {away} @ {home} — starters not both known, "
+                  f"{(first_pitch_utc - now_utc).total_seconds() / 3600:.1f}h to first pitch")
+            continue
 
         result = predict_with_model(production, home, away, home_starter, away_starter, ctx)
 
