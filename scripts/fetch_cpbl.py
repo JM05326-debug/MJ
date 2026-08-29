@@ -18,6 +18,7 @@ locked predictions keep resolving to the same game_id
 """
 import _console  # noqa: F401  (must import first to fix console encoding)
 import json
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -53,22 +54,49 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0
 BASE = "https://www.rebas.tw"
 
 
-def fetch_calendar(session: requests.Session, start: str, days: int) -> list:
-    r = session.get(
-        f"{BASE}/api/formal/calendar",
-        params={"start": start, "days": days, "league_uniqid": "CPBL"},
-        headers=HEADERS, timeout=30,
-    )
-    r.raise_for_status()
-    payload = r.json()
-    if payload.get("error"):
-        return []
-    return payload.get("data") or []
+def fetch_calendar(session: requests.Session, start: str, days: int, retries: int = 3) -> list:
+    """One calendar request. rebas.tw answers a day with no scheduled games
+    (every Monday, plus the whole post-season gap) with an HTTP 200 and an
+    *empty body* — that's a normal "nothing here", NOT an error, and must
+    return [] rather than blow up r.json() (which is exactly how one Monday
+    at the start of the fetch window used to kill the entire CPBL pipeline
+    for days). A non-empty body that still won't parse is more likely a
+    transient rate-limit/HTML page, so retry a few times, then skip just
+    that chunk — a stale day is recoverable next run, a crash isn't."""
+    for attempt in range(retries + 1):
+        try:
+            r = session.get(
+                f"{BASE}/api/formal/calendar",
+                params={"start": start, "days": days, "league_uniqid": "CPBL"},
+                headers=HEADERS, timeout=30,
+            )
+            r.raise_for_status()
+        except requests.RequestException:
+            if attempt == retries:
+                print(f"  [calendar {start}] request failed after {retries} retries, skipping chunk")
+                return []
+            time.sleep(2.0 * (attempt + 1))
+            continue
+        if not r.text.strip():
+            return []  # no games scheduled in this window
+        try:
+            payload = r.json()
+        except ValueError:
+            if attempt == retries:
+                print(f"  [calendar {start}] unparseable body (len={len(r.text)}), skipping chunk")
+                return []
+            time.sleep(2.0 * (attempt + 1))
+            continue
+        if payload.get("error"):
+            return []
+        return payload.get("data") or []
+    return []
 
 
 def fetch_calendar_range(session: requests.Session, start_date, total_days: int) -> list:
     """fetch_calendar(), but split into CHUNK_DAYS-sized requests (see
-    CHUNK_DAYS) so scheduled_SP is never silently dropped."""
+    CHUNK_DAYS) so scheduled_SP is never silently dropped. A short pause
+    between chunks keeps the ~50-request burst under rebas.tw's rate limit."""
     games = []
     offset = 0
     while offset < total_days:
@@ -76,6 +104,7 @@ def fetch_calendar_range(session: requests.Session, start_date, total_days: int)
         chunk_start = (start_date + timedelta(days=offset)).isoformat()
         games.extend(fetch_calendar(session, chunk_start, chunk))
         offset += chunk
+        time.sleep(0.5)
     return games
 
 
