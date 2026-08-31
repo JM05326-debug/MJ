@@ -329,6 +329,233 @@
       "status": "rejected",
       "promoted_at": null,
       "rejected_reason": "log_loss 0.687 did not beat champion 0.687 by required margin 0.005"
+    },
+    {
+      "version": "v0005_logreg_2026wk36",
+      "type": "sklearn_logreg",
+      "model_name": "Logistic Regression",
+      "artifact_path": "models/v0005_logreg_2026wk36/model.joblib",
+      "trained_at": "2026-08-31T18:01:42.508331Z",
+      "training_row_count": 4525,
+      "feature_list": [
+        "elo_p_home",
+        "poisson_p_home",
+        "elo_rating_diff",
+        "lam_home",
+        "lam_away",
+        "home_pitcher_factor",
+        "home_pitcher_factor_known",
+        "away_pitcher_factor",
+        "away_pitcher_factor_known",
+        "home_bullpen_factor",
+        "home_bullpen_factor_known",
+        "away_bullpen_factor",
+        "away_bullpen_factor_known",
+        "home_hand_factor",
+        "home_hand_factor_known",
+        "away_hand_factor",
+        "away_hand_factor_known"
+      ],
+      "eval_window": {
+        "type": "backfill_holdout",
+        "start": "2025-09-16",
+        "end": "2026-08-30",
+        "n_games": 1131,
+        "n_train": 4525,
+        "n_forward_available": 81
+      },
+      "validation_test_split": {
+        "test_held_out": true,
+        "validation": {
+          "n": 792,
+          "start": "2025-09-16",
+          "end": "2026-07-08"
+        },
+        "test": {
+          "n": 339,
+          "start": "2026-07-08",
+          "end": "2026-08-30"
+        }
+      },
+      "metrics": {
+        "n": 792,
+        "log_loss": 0.6881,
+        "brier": 0.2475,
+        "accuracy": 0.5404,
+        "confidence_buckets": [
+          {
+            "range": "50-55%",
+            "n": 467,
+            "predicted_prob_mean": 0.526,
+            "actual_win_rate": 0.522
+          },
+          {
+            "range": "55-60%",
+            "n": 285,
+            "predicted_prob_mean": 0.569,
+            "actual_win_rate": 0.572
+          },
+          {
+            "range": "60-65%",
+            "n": 40,
+            "predicted_prob_mean": 0.607,
+            "actual_win_rate": 0.525
+          },
+          {
+            "range": "65-70%",
+            "n": 0,
+            "predicted_prob_mean": null,
+            "actual_win_rate": null
+          },
+          {
+            "range": "70%+",
+            "n": 0,
+            "predicted_prob_mean": null,
+            "actual_win_rate": null
+          }
+        ],
+        "auc": 0.5482,
+        "calibration_bins": [
+          {
+            "mean_predicted": 0.472,
+            "fraction_positive": 0.479
+          },
+          {
+            "mean_predicted": 0.548,
+            "fraction_positive": 0.549
+          },
+          {
+            "mean_predicted": 0.607,
+            "fraction_positive": 0.525
+          }
+        ],
+        "roi": {
+          "n_games": 0,
+          "n_bets": 0,
+          "roi_pct": null
+        }
+      },
+      "metrics_test_holdout": {
+        "champion": {
+          "n": 339,
+          "log_loss": 0.6833,
+          "brier": 0.2451,
+          "accuracy": 0.5664,
+          "confidence_buckets": [
+            {
+              "range": "50-55%",
+              "n": 192,
+              "predicted_prob_mean": 0.522,
+              "actual_win_rate": 0.542
+            },
+            {
+              "range": "55-60%",
+              "n": 128,
+              "predicted_prob_mean": 0.572,
+              "actual_win_rate": 0.609
+            },
+            {
+              "range": "60-65%",
+              "n": 19,
+              "predicted_prob_mean": 0.61,
+              "actual_win_rate": 0.526
+            },
+            {
+              "range": "65-70%",
+              "n": 0,
+              "predicted_prob_mean": null,
+              "actual_win_rate": null
+            },
+            {
+              "range": "70%+",
+              "n": 0,
+              "predicted_prob_mean": null,
+              "actual_win_rate": null
+            }
+          ],
+          "auc": 0.5812,
+          "calibration_bins": [
+            {
+              "mean_predicted": 0.471,
+              "fraction_positive": 0.417
+            },
+            {
+              "mean_predicted": 0.549,
+              "fraction_positive": 0.561
+            },
+            {
+              "mean_predicted": 0.61,
+              "fraction_positive": 0.526
+            }
+          ],
+          "roi": {
+            "n_games": 30,
+            "n_bets": 1,
+            "roi_pct": -100.0
+          }
+        },
+        "challenger": {
+          "n": 339,
+          "log_loss": 0.6832,
+          "brier": 0.2451,
+          "accuracy": 0.5693,
+          "confidence_buckets": [
+            {
+              "range": "50-55%",
+              "n": 195,
+              "predicted_prob_mean": 0.523,
+              "actual_win_rate": 0.549
+            },
+            {
+              "range": "55-60%",
+              "n": 126,
+              "predicted_prob_mean": 0.573,
+              "actual_win_rate": 0.603
+            },
+            {
+              "range": "60-65%",
+              "n": 18,
+              "predicted_prob_mean": 0.611,
+              "actual_win_rate": 0.556
+            },
+            {
+              "range": "65-70%",
+              "n": 0,
+              "predicted_prob_mean": null,
+              "actual_win_rate": null
+            },
+            {
+              "range": "70%+",
+              "n": 0,
+              "predicted_prob_mean": null,
+              "actual_win_rate": null
+            }
+          ],
+          "auc": 0.5823,
+          "calibration_bins": [
+            {
+              "mean_predicted": 0.471,
+              "fraction_positive": 0.41
+            },
+            {
+              "mean_predicted": 0.549,
+              "fraction_positive": 0.56
+            },
+            {
+              "mean_predicted": 0.611,
+              "fraction_positive": 0.556
+            }
+          ],
+          "roi": {
+            "n_games": 30,
+            "n_bets": 1,
+            "roi_pct": -100.0
+          }
+        }
+      },
+      "status": "rejected",
+      "promoted_at": null,
+      "rejected_reason": "log_loss 0.6881 did not beat champion 0.688 by required margin 0.005"
     }
   ]
 }

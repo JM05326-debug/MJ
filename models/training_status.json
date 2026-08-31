@@ -1,5 +1,5 @@
 {
-  "last_run_utc": "2026-08-24T19:19:22.026091Z",
+  "last_run_utc": "2026-08-31T18:01:44.882249Z",
   "outcome": "維持現有模型",
-  "detail": "log_loss 0.687 did not beat champion 0.687 by required margin 0.005"
+  "detail": "log_loss 0.6881 did not beat champion 0.688 by required margin 0.005"
 }
