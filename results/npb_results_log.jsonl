@@ -110,3 +110,8 @@
 {"game_id": "npb:2026-09-12:西武:日本ハム", "league": "npb", "actual_home_runs": 3, "actual_away_runs": 3, "actual_total_runs": 6, "actual_home_win": false, "status": "final", "collected_at_utc": "2026-09-12T18:09:03.157789Z"}
 {"game_id": "npb:2026-09-12:オリックス:楽天", "league": "npb", "actual_home_runs": 5, "actual_away_runs": 3, "actual_total_runs": 8, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-12T18:09:03.157789Z"}
 {"game_id": "npb:2026-09-12:ソフトバンク:ロッテ", "league": "npb", "actual_home_runs": 5, "actual_away_runs": 4, "actual_total_runs": 9, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-12T18:09:03.157789Z"}
+{"game_id": "npb:2026-09-13:ヤクルト:広島", "league": "npb", "actual_home_runs": 3, "actual_away_runs": 1, "actual_total_runs": 4, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-13T18:09:19.144814Z"}
+{"game_id": "npb:2026-09-13:DeNA:巨人", "league": "npb", "actual_home_runs": 5, "actual_away_runs": 0, "actual_total_runs": 5, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-13T18:09:19.144814Z"}
+{"game_id": "npb:2026-09-13:阪神:中日", "league": "npb", "actual_home_runs": 0, "actual_away_runs": 1, "actual_total_runs": 1, "actual_home_win": false, "status": "final", "collected_at_utc": "2026-09-13T18:09:19.144814Z"}
+{"game_id": "npb:2026-09-13:西武:日本ハム", "league": "npb", "actual_home_runs": 1, "actual_away_runs": 7, "actual_total_runs": 8, "actual_home_win": false, "status": "final", "collected_at_utc": "2026-09-13T18:09:19.144814Z"}
+{"game_id": "npb:2026-09-13:ソフトバンク:ロッテ", "league": "npb", "actual_home_runs": 7, "actual_away_runs": 4, "actual_total_runs": 11, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-13T18:09:19.144814Z"}
