@@ -195,7 +195,9 @@ def build_league(name: str, game_file: str, pitchers_file: str, batters_file: st
 
 def render_html(cpbl: dict, npb: dict, generated_at: str) -> str:
     template = (ROOT / "scripts" / "template.html").read_text(encoding="utf-8")
-    payload = json.dumps({"cpbl": cpbl, "npb": npb}, ensure_ascii=False)
+    # escape "</" so scraped text (team/pitcher names, ...) containing
+    # "</script>" can't prematurely close the tag this gets embedded into
+    payload = json.dumps({"cpbl": cpbl, "npb": npb}, ensure_ascii=False).replace("</", "<\\/")
     html = template.replace("__GENERATED_AT__", generated_at)
     html = html.replace("__DATA_JSON__", payload)
     return html

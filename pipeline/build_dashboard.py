@@ -216,7 +216,11 @@ def build():
     }
 
     template = (PIPELINE_DIR / "dashboard_template.html").read_text(encoding="utf-8")
-    html = template.replace("__DASHBOARD_JSON__", json.dumps(data, ensure_ascii=False))
+    # data includes scraped third-party text (team/pitcher names, ...); escape
+    # "</" so a value containing "</script>" can't prematurely close the tag
+    # this gets embedded into below and inject arbitrary markup/script.
+    json_blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    html = template.replace("__DASHBOARD_JSON__", json_blob)
 
     DOCS_DIR.mkdir(exist_ok=True)
     (DOCS_DIR / "index.html").write_text(html, encoding="utf-8")

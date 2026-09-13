@@ -135,12 +135,20 @@ def lock_league(league: str, now_utc: datetime) -> int:
         odds_away_p = odds_entry.get("away_pitcher") if odds_entry else None
         home_starter = pick_starter(odds_home_p, game.get("h_pitcher"), ctx.pitchers)
         away_starter = pick_starter(odds_away_p, game.get("v_pitcher"), ctx.pitchers)
-        # store the canonical roster name (what the pitcher factor actually
-        # keyed off), not whichever ragged feed form we happened to read
-        home_starter = resolve_pitcher_name(home_starter, ctx.pitchers) or home_starter
-        away_starter = resolve_pitcher_name(away_starter, ctx.pitchers) or away_starter
 
-        starters_known = bool(home_starter) and bool(away_starter)
+        # Resolve to the canonical roster key BEFORE the known-starter gate
+        # below — a bare surname like npb.jp's '才木' or '田中' is non-empty
+        # but ambiguous (several same-surname NPB pitchers), so it must NOT
+        # count as "known" or the gate would release on it immediately
+        # instead of waiting for playsport's fuller, disambiguating name.
+        home_resolved = resolve_pitcher_name(home_starter, ctx.pitchers)
+        away_resolved = resolve_pitcher_name(away_starter, ctx.pitchers)
+        starters_known = bool(home_resolved) and bool(away_resolved)
+        # ...but still show whatever raw name we have once we do lock (below),
+        # ambiguous or not — an unresolved name displayed is still more
+        # useful than blanking it back to "先發未公布".
+        home_starter = home_resolved or home_starter
+        away_starter = away_resolved or away_starter
         if not starters_known and first_pitch_utc - now_utc > timedelta(hours=FINAL_LOCK_HOURS):
             # hold this game back for a later run — a starter may still be
             # announced before we hit the FINAL_LOCK_HOURS deadline
