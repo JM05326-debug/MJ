@@ -84,3 +84,6 @@
 {"game_id": "cpbl:2026-A-351", "league": "cpbl", "actual_home_runs": 3, "actual_away_runs": 2, "actual_total_runs": 5, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-25T19:08:43.273494Z"}
 {"game_id": "cpbl:2026-A-350", "league": "cpbl", "actual_home_runs": 6, "actual_away_runs": 0, "actual_total_runs": 6, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-25T19:08:43.273494Z"}
 {"game_id": "cpbl:2026-A-349", "league": "cpbl", "actual_home_runs": 2, "actual_away_runs": 1, "actual_total_runs": 3, "actual_home_win": true, "status": "final", "collected_at_utc": "2026-09-25T19:08:43.273494Z"}
+{"game_id": "cpbl:2026-A-354", "league": "cpbl", "actual_home_runs": 3, "actual_away_runs": 7, "actual_total_runs": 10, "actual_home_win": false, "status": "final", "collected_at_utc": "2026-09-26T18:20:04.200384Z"}
+{"game_id": "cpbl:2026-A-353", "league": "cpbl", "actual_home_runs": 3, "actual_away_runs": 5, "actual_total_runs": 8, "actual_home_win": false, "status": "final", "collected_at_utc": "2026-09-26T18:20:04.200384Z"}
+{"game_id": "cpbl:2026-A-352", "league": "cpbl", "actual_home_runs": 2, "actual_away_runs": 3, "actual_total_runs": 5, "actual_home_win": false, "status": "final", "collected_at_utc": "2026-09-26T18:20:04.200384Z"}
